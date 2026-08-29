@@ -75,3 +75,23 @@ permite GET a `/address` y `/account` justamente porque el header lee la
 direccion con un GET. Al correr `login`, revisa en la consola si alguna peticion
 abortada (`[guard] peticion bloqueada: ...`) era una lectura que la pagina
 necesitaba. Si aparece alguna, hay que afinar el patron, no quitar el guard.
+
+### 7. Como redacta Rappi los badges de descuento
+
+`parseDiscount` exige que un porcentaje venga acompanado de contexto de
+descuento para aceptarlo: una palabra clave (`OFF`, `dcto`, `desc`,
+`descuento`), un guion delante (`-50%`), o que el badge sea SOLO el porcentaje
+(`50%`). Es deliberadamente estricto, y es lo que hace que `100% natural` se
+descarte en vez de reportarse como una oferta falsa.
+
+El costo de esa estrictez: un badge tipo `50% en pizzas` (porcentaje, sin
+palabra clave, no aislado) tambien se descarta. Si al calibrar resulta que
+Rappi escribe asi sus badges reales, hay que relajar la verificacion
+`hasContext` en `findDiscountCandidates` (`src/parse/discount.ts`) — pero
+relajala con un test que siga descartando `100% natural`, porque ese es el caso
+que la regla existe para atrapar.
+
+Sintoma de que esto esta pasando: corridas que terminan en "Sin ofertas >=50%"
+mientras en pantalla si se ven promociones grandes. Es el unico modo de fallo
+silencioso que queda en el sistema, y por eso vale la pena revisarlo en la
+primera corrida real.
