@@ -1,0 +1,77 @@
+# Calibracion de selectores
+
+Los selectores de `src/selectors.ts` se escribieron SIN acceso al DOM
+autenticado de Rappi. Los tests con fixtures prueban que la logica de
+extraccion es correcta; NO prueban que los selectores le peguen al HTML real.
+La primera corrida contra Rappi probablemente falle, y eso es el diseno
+funcionando: preferimos un fallo ruidoso a una oferta inventada.
+
+## Como hacer la pasada de calibracion
+
+1. `npm run login` — abre el navegador, entras con tu cuenta, confirmas la
+   direccion de Chia, presionas ENTER. El comando vuelca el DOM real a
+   `logs/dom-<timestamp>.html` y un screenshot a `logs/shot-<timestamp>.png`.
+2. Abre ese HTML y busca una tarjeta de restaurante con descuento.
+3. Ajusta `src/selectors.ts`. Cada constante es una LISTA de candidatos que se
+   prueban en orden: agrega el selector real AL PRINCIPIO en vez de reemplazar
+   la lista, para no perder compatibilidad si Rappi hace rollback.
+4. Actualiza los fixtures de `fixtures/` con markup real y corre `npm test`.
+
+## Riesgos conocidos, en orden de prioridad
+
+Esto sale de la revision de los modulos de navegador y de scraping.
+
+### 1. `CARD_BADGE` — contaminacion de texto
+
+El scraper concatena todos los matches dentro de una tarjeta. Un candidato
+amplio como `[class*="badge"]` sobre clases hasheadas de CSS-in-JS puede
+arrastrar tiempos de entrega o calificaciones al `badgeText`, que es justo el
+texto que lee el parser. Ya se quito `[class*="tag"]` por ser demasiado amplio.
+
+Mitigacion parcial que ya existe: `parseDiscount` rechaza explicitamente
+`30 min`, `50 minutos`, `4.5` y `$50.000`, asi que la basura tipica degrada a
+`null` (tarjeta omitida) en vez de a un porcentaje falso.
+
+Al calibrar: confirma si `data-qa="discount-badge"` o `data-testid="discount"`
+existen de verdad. Si existen, recorta los candidatos por clase sin piedad.
+
+### 2. `ADDRESS_INDICATOR` — el selector mas debil
+
+`header [class*="address"]` y `[class*="AddressLabel"]` asumen nombres de clase
+legibles, y Rappi probablemente usa clases hasheadas. Ademas el header podria
+mostrar solo la calle ("Calle 5 #10-20") sin la palabra "Chia", lo que dispararia
+`AddressError` aun con la direccion correcta.
+
+Si pasa eso, la solucion NO es relajar la verificacion: es apuntar el selector al
+elemento que si contiene la ciudad, o ajustar `EXPECTED_ADDRESS` en `.env` a algo
+que si aparezca en pantalla. La regla 4 (parar si la direccion no es Chia) no se
+negocia.
+
+### 3. `LOGGED_IN_INDICATOR` — bloquea toda corrida
+
+Por la regla 4 el estado ambiguo aborta. Si ninguno de esos selectores matchea
+una pagina realmente logueada, TODA corrida de `check` falla con `SessionError`.
+Es el comportamiento buscado, pero vuelve al volcado del DOM un prerrequisito
+duro antes de programar el cron.
+
+### 4. `RESTAURANT_CARD` — tarjetas basura
+
+El ultimo candidato, `a[href*="/restaurantes/"]`, va a matchear links de
+navegacion, breadcrumbs y footer. El scraper ya filtra matches anidados y
+descarta tarjetas sin nombre, pero un link suelto podria colarse. El dano es
+acotado: sin badge, `parseDiscount` devuelve `null` y la tarjeta se descarta.
+
+### 5. `OFFERS_TAB_TEXT` — probablemente no matchea
+
+Esta anclado a `^(ofertas|descuentos|promociones)$`, y las pestanas reales suelen
+traer un contador o texto de icono ("Ofertas 24"). Radio de dano bajo: la pasada
+de ofertas no es fatal y el listado principal igual se recorre. Pero
+probablemente no haga nada en el primer contacto.
+
+### 6. Deny-list de red vs. lecturas necesarias
+
+Ya corregido, pero conviene verificarlo en vivo: `READ_ONLY_URL_PATTERNS`
+permite GET a `/address` y `/account` justamente porque el header lee la
+direccion con un GET. Al correr `login`, revisa en la consola si alguna peticion
+abortada (`[guard] peticion bloqueada: ...`) era una lectura que la pagina
+necesitaba. Si aparece alguna, hay que afinar el patron, no quitar el guard.

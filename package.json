@@ -1,0 +1,26 @@
+{
+  "name": "rappi-ofertas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Revisa Rappi Colombia buscando restaurantes con descuento >=50% y avisa por Discord",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "login": "npm run build && node dist/cli.js login",
+    "check": "npm run build && node dist/cli.js check",
+    "dry-run": "npm run build && node dist/cli.js check --dry-run",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

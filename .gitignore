@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.browser-profile/
+logs/*.jsonl
+logs/*.html
+logs/*.png
+.DS_Store

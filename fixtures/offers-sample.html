@@ -1,0 +1,79 @@
+<!--
+  Fixture de la seccion Ofertas / Descuentos.
+
+  A proposito usa una forma de markup DISTINTA a listing-sample.html:
+  `data-testid` en vez de `data-qa`, y el subtitulo por clase en vez de por
+  atributo. Aqui NO aparece ningun `data-qa`, para que el test demuestre que la
+  lista de candidatos de selectors.ts realmente cae al segundo candidato:
+
+    RESTAURANT_CARD -> [data-testid="store-card"]   (candidato 2)
+    CARD_NAME       -> [data-testid="store-name"]   (candidato 2)
+    CARD_BADGE      -> [data-testid="discount"]     (candidato 2)
+    CARD_SUBTITLE   -> [class*="subtitle"]          (candidato 2)
+
+  Si un cambio de markup rompiera el primer candidato en produccion, este
+  fixture es la prueba de que la corrida sigue en pie.
+-->
+<section class="offers-rail">
+
+  <!-- Techo. -->
+  <a
+    class="rail-item"
+    data-testid="store-card"
+    href="https://www.rappi.com.co/restaurantes/910201-frisby-express"
+  >
+    <span data-testid="discount" class="promo-chip">hasta 60%</span>
+    <h2 data-testid="store-name">Frisby Express</h2>
+    <p class="card-subtitle">Pollo &middot; en productos seleccionados</p>
+  </a>
+
+  <!-- Porcentaje plano, con el enlace anidado en vez de la tarjeta misma. -->
+  <div class="rail-item" data-testid="store-card">
+    <span data-testid="discount" class="promo-chip">50% OFF</span>
+    <a href="https://www.rappi.com.co/restaurantes/910202-crepes-and-waffles">
+      <h2 data-testid="store-name">Crepes &amp; Waffles</h2>
+    </a>
+    <p class="card-subtitle">Postres &middot; en todo el men&uacute;</p>
+  </div>
+
+  <!-- 2x1. href relativo, para ejercitar la resolucion de URL. -->
+  <a
+    class="rail-item"
+    data-testid="store-card"
+    href="/restaurantes/910203-sanduches-olimpica"
+  >
+    <span data-testid="discount" class="promo-chip">2x1</span>
+    <h2 data-testid="store-name">S&aacute;nduches Ol&iacute;mpica</h2>
+    <p class="card-subtitle">Sandwiches &middot; solo primer pedido</p>
+  </a>
+
+  <!-- Sin badge: entra igual, con badgeText ''. -->
+  <a
+    class="rail-item"
+    data-testid="store-card"
+    href="https://www.rappi.com.co/restaurantes/910204-juan-valdez"
+  >
+    <h2 data-testid="store-name">Juan Valdez</h2>
+    <p class="card-subtitle">Caf&eacute; &middot; 15-25 min</p>
+  </a>
+
+  <!-- Dos badges + nombre anidado con espacios sobrantes. -->
+  <a
+    class="rail-item"
+    data-testid="store-card"
+    href="https://www.rappi.com.co/restaurantes/910205-hamburguesas-el-rodeo"
+  >
+    <span data-testid="discount" class="promo-chip">55% OFF</span>
+    <span data-testid="discount" class="promo-chip">Env&iacute;o gratis</span>
+    <h2 data-testid="store-name">
+      <span>
+        Hamburguesas
+      </span>
+      <span>
+        El   Rodeo
+      </span>
+    </h2>
+    <p class="card-subtitle">Hamburguesas &middot; hasta el 31/08</p>
+  </a>
+
+</section>

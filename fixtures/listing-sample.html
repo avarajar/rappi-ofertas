@@ -1,0 +1,113 @@
+<!--
+  Fixture del listado principal de Rappi (forma `data-qa`).
+
+  Ejercita los primeros candidatos de RESTAURANT_CARD, CARD_NAME, CARD_BADGE y
+  CARD_SUBTITLE. El archivo documenta el markup esperado: cuando Rappi cambie su
+  HTML, el test que falle dice exactamente cual selector se rompio.
+
+  Cobertura buscada:
+    1. 50% OFF                 -> caso feliz, pasa el filtro
+    2. hasta 60%               -> techo, se marca como `upto`
+    3. 2x1                     -> cuenta como 50 pero se imprime 2x1
+    4. 15% OFF                 -> se extrae aqui, lo descarta el parser
+    5. Envio gratis            -> badge sin porcentaje
+    6. sin badge               -> badgeText '' , NO se descarta la tarjeta
+    7. nombre anidado con espacios de sobra
+    8. dos badges en la misma tarjeta
+-->
+<div class="listing-grid">
+
+  <!-- 1. Porcentaje plano. La tarjeta ES el enlace. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900101-burger-master"
+  >
+    <span data-qa="discount-badge" class="promo-chip">50% OFF</span>
+    <h3 data-qa="store-name">Burger Master</h3>
+    <p data-qa="store-subtitle">Hamburguesas &middot; 25-35 min &middot; en todo el men&uacute;</p>
+  </a>
+
+  <!-- 2. Techo. Envuelta en div, el enlace va adentro. -->
+  <div class="card-shell" data-qa="store-card">
+    <span data-qa="discount-badge" class="promo-chip">hasta 60%</span>
+    <a href="https://www.rappi.com.co/restaurantes/900102-sushi-nikkei">
+      <h3 data-qa="store-name">Sushi Nikkei</h3>
+    </a>
+    <p data-qa="store-subtitle">Japonesa &middot; en productos seleccionados</p>
+  </div>
+
+  <!-- 3. 2x1. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900103-pizza-roma"
+  >
+    <span data-qa="discount-badge" class="promo-chip">2x1</span>
+    <h3 data-qa="store-name">Pizza Roma</h3>
+    <p data-qa="store-subtitle">Pizza &middot; solo en el primer pedido</p>
+  </a>
+
+  <!-- 4. Por debajo del umbral. Se extrae; el filtro >=50 la deja fuera. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900104-taco-loco"
+  >
+    <span data-qa="discount-badge" class="promo-chip">15% OFF</span>
+    <h3 data-qa="store-name">Taco Loco</h3>
+    <p data-qa="store-subtitle">Mexicana &middot; 30-40 min</p>
+  </a>
+
+  <!-- 5. Badge sin porcentaje: el parser devuelve null y se omite. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900105-arepas-del-valle"
+  >
+    <span data-qa="discount-badge" class="promo-chip">Env&iacute;o gratis</span>
+    <h3 data-qa="store-name">Arepas del Valle</h3>
+    <p data-qa="store-subtitle">Colombiana &middot; 20-30 min</p>
+  </a>
+
+  <!-- 6. Sin badge alguno. Debe salir con badgeText '' , nunca descartada. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900106-panaderia-central"
+  >
+    <h3 data-qa="store-name">Panader&iacute;a Central</h3>
+    <p data-qa="store-subtitle">Panader&iacute;a &middot; 15-25 min</p>
+  </a>
+
+  <!-- 7. Nombre partido en varios nodos, con espacios y saltos de linea. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900107-el-corral-gourmet"
+  >
+    <span data-qa="discount-badge" class="promo-chip">70% OFF</span>
+    <div data-qa="store-name">
+      <span class="brand-line">
+        El   Corral
+      </span>
+      <span class="brand-line">
+        Gourmet
+      </span>
+    </div>
+    <p data-qa="store-subtitle">Hamburguesas &middot; en todo el men&uacute;</p>
+  </a>
+
+  <!-- 8. Dos badges en la misma tarjeta: se concatenan en orden DOM. -->
+  <a
+    class="card-shell"
+    data-qa="store-card"
+    href="https://www.rappi.com.co/restaurantes/900108-wok-express"
+  >
+    <span data-qa="discount-badge" class="promo-chip">50% OFF</span>
+    <span data-qa="discount-badge" class="promo-chip">Env&iacute;o gratis</span>
+    <h3 data-qa="store-name">Wok Express</h3>
+    <p data-qa="store-subtitle">Asi&aacute;tica &middot; hasta el 31/08</p>
+  </a>
+
+</div>
