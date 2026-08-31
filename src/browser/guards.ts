@@ -216,10 +216,19 @@ interface AppState {
 export async function readAppState(page: Page): Promise<AppState | null> {
   try {
     return await page.evaluate((id: string) => {
-      const el = document.getElementById(id);
-      if (el === null || el.textContent === null) return null;
+      // Next.js deja el objeto como global ademas del <script>. El global
+      // sobrevive a la hidratacion, mientras que el tag a veces no esta
+      // presente cuando se consulta; probar los dos evita esa carrera.
+      const fromGlobal = (window as unknown as Record<string, any>).__NEXT_DATA__;
+      let data: Record<string, any> | null =
+        fromGlobal !== null && typeof fromGlobal === 'object' ? fromGlobal : null;
 
-      const data = JSON.parse(el.textContent) as Record<string, any>;
+      if (data === null) {
+        const el = document.getElementById(id);
+        if (el === null || el.textContent === null) return null;
+        data = JSON.parse(el.textContent) as Record<string, any>;
+      }
+
       const props = data?.props?.pageProps ?? {};
       const flag = props?.commonData?.isLoggedIn ?? props?.isAuthUser ?? null;
 
@@ -306,13 +315,19 @@ export async function assertAddressMatches(page: Page, expected: string): Promis
     );
   }
 
+  // Sin estado de app no hay forma confiable de leer la ciudad: el header solo
+  // muestra la calle. Antes de rendirse conviene decir por que, porque la causa
+  // mas comun no es que Rappi cambiara su HTML sino que devolvio su pagina SEO,
+  // que no trae ni estado ni direccion.
   const locator = await findFirst(page, ADDRESS_INDICATOR);
   if (locator === null) {
     throw new SelectorError(
-      'No encontre el indicador de direccion en el header. Probe: ' +
-        `${ADDRESS_INDICATOR.join(', ')}. Rappi cambio su HTML; hay que ` +
-        'recalibrar ADDRESS_INDICATOR en src/selectors.ts (corre `npm run ' +
-        'login` para volcar el DOM real a logs/).',
+      'No pude leer la ciudad activa: Rappi no expuso su estado ' +
+        '(__NEXT_DATA__) y tampoco encontre la direccion en el header. ' +
+        'Lo mas probable es que haya devuelto su pagina SEO sin listado en vez ' +
+        'del listado personalizado; si se repite en todas las corridas, ' +
+        'entonces si cambio el HTML y hay que recalibrar src/selectors.ts. ' +
+        `Probe: ${ADDRESS_INDICATOR.join(', ')}.`,
       ADDRESS_INDICATOR.join(', '),
     );
   }
