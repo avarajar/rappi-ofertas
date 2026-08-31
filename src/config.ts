@@ -81,7 +81,7 @@ export function loadConfig(opts: { requireWebhook: boolean; cwd?: string }): Con
       cwd,
       process.env.BROWSER_PROFILE_DIR?.trim() || '.browser-profile',
     ),
-    scrapeTimeoutMs: intFromEnv('SCRAPE_TIMEOUT_MS', 240_000),
+    scrapeTimeoutMs: intFromEnv('SCRAPE_TIMEOUT_MS', 600_000),
     maxScrollSteps: intFromEnv('MAX_SCROLL_STEPS', 40),
   };
 }

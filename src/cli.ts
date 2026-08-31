@@ -107,7 +107,7 @@ const LOGIN_WAIT_MS = 5 * 60_000;
  * aparecer. Verificar la sesion de inmediato es una carrera que se pierde, y se
  * perderia como SessionError en cada corrida de cron.
  */
-const READY_WAIT_MS = 90_000;
+const READY_WAIT_MS = 300_000;
 
 /**
  * Espera a que la sesion quede REALMENTE lista: logueada y en la direccion
@@ -282,6 +282,7 @@ async function runCheck(args: Args): Promise<number> {
         maxScrollSteps: config!.maxScrollSteps,
         timeoutMs: config!.scrapeTimeoutMs,
         log,
+        alreadyOnListing: true,
       });
       cardsSeen = cards.length;
       log(`tarjetas vistas: ${cardsSeen}`);

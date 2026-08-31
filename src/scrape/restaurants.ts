@@ -41,6 +41,14 @@ export interface HarvestOptions {
   timeoutMs: number;
   /** Opcional: para ver los reintentos de navegacion con --verbose. */
   log?: (msg: string) => void;
+  /**
+   * La pagina ya esta en el listado, no hay que navegar de nuevo.
+   *
+   * Importa porque cada carga extra de /restaurantes sube la probabilidad de
+   * que Rappi devuelva su pagina SEO sin tarjetas. Una corrida deberia gastar
+   * una sola navegacion.
+   */
+  alreadyOnListing?: boolean;
 }
 
 /** Selectores serializables que cruzan a `page.evaluate`. */
@@ -372,11 +380,17 @@ async function harvestMainListing(
 }
 
 /** Cuantas veces se reintenta obtener la variante con listado. */
-const LISTING_ATTEMPTS = 5;
+const LISTING_ATTEMPTS = 6;
 /** Cuanto se espera a que aparezcan tarjetas en cada intento, en ms. */
 const LISTING_ATTEMPT_MS = 12_000;
-/** Espera base entre reintentos de navegacion, en ms. Crece exponencialmente. */
-const LISTING_BACKOFF_MS = 4_000;
+/**
+ * Espera base entre reintentos de navegacion, en ms. Crece exponencialmente.
+ *
+ * Medido: cargando en rafaga el listado sale ~60% de las veces, pero la tasa
+ * NO es independiente entre intentos: a mas peticiones seguidas, peor. Por eso
+ * la estrategia es pocos intentos bien espaciados en vez de muchos rapidos.
+ */
+const LISTING_BACKOFF_MS = 15_000;
 
 /**
  * Navega al listado y REINTENTA hasta que Rappi entregue la variante buena.
@@ -412,7 +426,7 @@ export async function gotoListing(
     // Backoff creciente antes de reintentar. Recargar de inmediato es
     // contraproducente: una rafaga de cargas identicas es justo lo que hace
     // que Rappi deje de servir el listado y devuelva su pagina estatica.
-    const backoff = Math.min(LISTING_BACKOFF_MS * 2 ** (attempt - 1), 20_000);
+    const backoff = Math.min(LISTING_BACKOFF_MS * 2 ** (attempt - 1), 60_000);
     log?.(`intento ${attempt}: Rappi devolvio la variante sin listado; espero ${Math.round(backoff / 1000)}s y recargo`);
     if (Date.now() + backoff >= deadline) break;
     await sleep(backoff);
@@ -435,12 +449,20 @@ export async function harvestRestaurants(
   // Un cero aqui todavia no es fatal: la pasada de ofertas puede traer
   // tarjetas por su cuenta. Solo el vacio en AMBAS pasadas significa que
   // Rappi cambio su HTML.
-  await gotoListing(page, deadline, opts.log);
+  if (opts.alreadyOnListing !== true) {
+    await gotoListing(page, deadline, opts.log);
+  }
+
+  const before = page.url();
   const offers = await harvestOffersTab(page, deadline);
 
-  // Volver al listado es una navegacion GET plana, nunca un boton de "atras"
-  // de la app: asi no se depende del historial del SPA.
-  await gotoListing(page, deadline, opts.log);
+  // Solo se vuelve a navegar si la pasada de ofertas SI movio la pagina. En el
+  // Rappi actual no hay pestana de ofertas y esa pasada no navega, asi que
+  // recargar aqui era una peticion regalada, y cada peticion de mas acerca la
+  // corrida a la variante SEO sin tarjetas.
+  if (page.url() !== before) {
+    await gotoListing(page, deadline, opts.log);
+  }
 
   const listing = await harvestMainListing(page, opts, deadline);
 

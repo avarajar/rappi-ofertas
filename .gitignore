@@ -6,3 +6,4 @@ logs/*.jsonl
 logs/*.html
 logs/*.png
 .DS_Store
+logs/*.log

@@ -63,10 +63,31 @@ Peor: la variante mala se vuelve MAS frecuente cuanto mas rapido se recarga.
 Tras unas 15 cargas seguidas durante la calibracion, empezo a salir siempre.
 Parece mitigacion de bots.
 
-Por eso `gotoListing` reintenta con backoff exponencial (4s, 8s, 16s, 20s) en vez
-de recargar de inmediato. Si vas a depurar a mano, no martilles la pagina:
-espera unos minutos entre corridas o vas a estar depurando el throttling en vez
-de tu codigo.
+Medido el 2026-08-31, cargando el listado diez veces seguidas:
+
+```
+directo:            30 · 0 · 30 · 30 · 0      ~60% de exito
+pasando por la home: 0 · 30 ·  0 ·  0 · 0     peor: mas peticiones, mas throttling
+```
+
+Dos conclusiones que definen la estrategia:
+
+1. La variante es aleatoria por peticion, NO se queda pegada a la sesion. Vale
+   la pena reintentar.
+2. La tasa no es independiente entre intentos: a mas peticiones seguidas, peor.
+   Reintentar rapido empeora el problema en vez de resolverlo.
+
+Por eso `gotoListing` hace POCOS intentos BIEN ESPACIADOS (backoff 15s, 30s,
+60s, 60s...) y la corrida completa gasta UNA sola navegacion. Antes gastaba
+tres —una para verificar la sesion y dos en la cosecha— y cada carga de mas
+acercaba la corrida a la variante sin tarjetas.
+
+La primera corrida programada de verdad (17:00) fallo justo por esto: con un
+presupuesto de 90s y backoff corto no le alcanzo. Con el presupuesto actual
+(10 min) una corrida real necesito 4 reintentos y entro al quinto, en 3:37.
+
+Si vas a depurar a mano, no martilles la pagina: espera unos minutos entre
+corridas o vas a estar depurando el throttling en vez de tu codigo.
 
 ## Riesgos conocidos, en orden de prioridad
 
