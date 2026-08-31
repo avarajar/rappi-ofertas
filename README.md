@@ -79,32 +79,34 @@ Codigos de salida: `0` si todo bien, `1` si algo fallo. El cron depende de eso.
 
 ---
 
-## Cron
+## Corridas automaticas
 
-Para correr tres veces al dia (11:00, 17:00 y 20:00):
+En macOS se usa `launchd`, no `cron`. La diferencia importa: si el Mac estaba
+dormido a la hora programada, launchd ejecuta el trabajo al despertar, mientras
+que cron simplemente pierde esa corrida sin avisar.
 
 ```bash
-crontab -e
+./scripts/install-schedule.sh              # 11:00, 17:00 y 20:00
+./scripts/install-schedule.sh 9 14 19 22   # o las horas que quieras
 ```
 
-Y agrega:
+El script arma el plist con las rutas de tu maquina, lo instala en
+`~/Library/LaunchAgents/` y lo carga. Avisa si falta `dist/` o el perfil del
+navegador, que son los dos motivos por los que una corrida programada fallaria
+en silencio.
 
-```cron
-0 11,17,20 * * * cd /Users/joselito/workspace/personal/rappi-ofertas && /opt/homebrew/opt/node@22/bin/node dist/cli.js check >> logs/cron.log 2>&1
+```bash
+launchctl list | grep rappi                                # 2o campo = ultimo exit code
+launchctl kickstart -p gui/$(id -u)/com.rappi-ofertas.check   # disparar ahora
+./scripts/uninstall-schedule.sh                            # quitar
 ```
 
-Detalles que importan:
+No reintenta al fallar, a proposito: recargar rapido es justo lo que hace que
+Rappi deje de servir el listado, y el fallo ya te llega por Discord.
 
-- **Ruta absoluta a `node`.** Cron corre con un `PATH` minimo y casi nunca
-  encuentra `node` solo. Averigua la tuya con `which node`.
-- **`cd` primero.** El script busca `.env`, `.browser-profile/` y `logs/` a
-  partir del directorio actual.
-- **Compila antes.** Cron ejecuta `dist/cli.js`, no el TypeScript. Corre
-  `npm run build` despues de cada cambio (o `npm run check` a mano, que compila
-  solo).
-- **macOS:** puede que tengas que darle a `cron` **Acceso total al disco** en
-  Ajustes del sistema > Privacidad y seguridad > Acceso total al disco
-  (agregando `/usr/sbin/cron`), o el job falla sin explicacion.
+Ojo con el throttling: si depuras a mano, espera unos minutos entre corridas.
+Tras ~15 cargas seguidas Rappi empieza a devolver una pagina SEO sin tarjetas,
+y vas a estar depurando su mitigacion en vez de tu codigo.
 
 ---
 
