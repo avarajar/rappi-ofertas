@@ -87,6 +87,35 @@ describe('normalizeAddress', () => {
 // Puro: deny-list de URLs. Dos listas con reglas distintas, ver shouldAbort.
 // ---------------------------------------------------------------------------
 
+describe('shouldAbort y los archivos estaticos', () => {
+  // Caso real visto contra Rappi: Next.js sirve el chunk de la pagina de
+  // checkout con "checkout" dentro de la URL. Bloquearlo no evita ninguna
+  // compra y sí puede romper el render de la SPA.
+  it('deja pasar un bundle de Next cuya ruta contiene checkout', () => {
+    const url =
+      'https://www.rappi.com.co/static-checkout/_next/static/chunks/pages/checkout/[storeType]-0e8ee12784c6dc6b.js';
+    expect(shouldAbort(url, 'GET')).toBe(false);
+  });
+
+  it('deja pasar css, fuentes e imagenes con rutas sospechosas', () => {
+    expect(shouldAbort('https://x.com/cart/styles.css', 'GET')).toBe(false);
+    expect(shouldAbort('https://x.com/account/logo.svg', 'GET')).toBe(false);
+    expect(shouldAbort('https://x.com/checkout/font.woff2', 'GET')).toBe(false);
+  });
+
+  it('la excepcion NO aplica a metodos de escritura', () => {
+    const url = 'https://x.com/cart/whatever.js';
+    expect(shouldAbort(url, 'POST')).toBe(true);
+  });
+
+  it('sigue bloqueando el API y la pagina de compra', () => {
+    expect(shouldAbort('https://x.com/api/cart/add', 'POST')).toBe(true);
+    expect(shouldAbort('https://x.com/api/cart', 'GET')).toBe(true);
+    expect(shouldAbort('https://x.com/checkout', 'GET')).toBe(true);
+    expect(shouldAbort('https://x.com/api/address/update', 'PUT')).toBe(true);
+  });
+});
+
 describe('shouldAbort', () => {
   describe('rutas de compra: se abortan con cualquier metodo', () => {
     it.each([

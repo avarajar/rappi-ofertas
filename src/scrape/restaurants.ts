@@ -39,6 +39,8 @@ const DETAIL_TIMEOUT_MS = 20_000;
 export interface HarvestOptions {
   maxScrollSteps: number;
   timeoutMs: number;
+  /** Opcional: para ver los reintentos de navegacion con --verbose. */
+  log?: (msg: string) => void;
 }
 
 /** Selectores serializables que cruzan a `page.evaluate`. */
@@ -164,7 +166,11 @@ function extractInPage(args: ExtractArgs): ExtractedCard[] {
   const cards: ExtractedCard[] = [];
   for (const card of pickCards()) {
     const badgeText = allBadgeText(card);
-    const name = firstText(card, args.nameSelectors) || firstLine(card, badgeText);
+    // En el DOM real de Rappi la tarjeta es un <a aria-label="Home Burgers">.
+    // Es la fuente mas limpia del nombre: viene sin el badge ni el tiempo de
+    // entrega pegados, que es justo lo que ensucia el texto visible.
+    const ariaName = squish(card.getAttribute('aria-label'));
+    const name = ariaName || firstText(card, args.nameSelectors) || firstLine(card, badgeText);
     // Una tarjeta sin nombre no se puede reportar ni deduplicar. Se descarta.
     if (name === '') continue;
 
@@ -365,6 +371,56 @@ async function harvestMainListing(
   return extractCardsFromPage(page, 'listing');
 }
 
+/** Cuantas veces se reintenta obtener la variante con listado. */
+const LISTING_ATTEMPTS = 5;
+/** Cuanto se espera a que aparezcan tarjetas en cada intento, en ms. */
+const LISTING_ATTEMPT_MS = 12_000;
+/** Espera base entre reintentos de navegacion, en ms. Crece exponencialmente. */
+const LISTING_BACKOFF_MS = 4_000;
+
+/**
+ * Navega al listado y REINTENTA hasta que Rappi entregue la variante buena.
+ *
+ * Medido en vivo: la misma URL devuelve a veces el listado personalizado (con
+ * tarjetas) y a veces una pagina SEO de "Top Marcas y Cadenas" que no tiene
+ * ninguna. Es no determinista y cambia entre cargas de la misma sesion.
+ *
+ * Sin este reintento, la mitad de las corridas de cron reportarian un fallo de
+ * selector que no es tal. Con el, un cero al final sigue siendo fatal: quiere
+ * decir que ninguna de las cinco cargas trajo tarjetas, y eso si es senal de
+ * que el HTML cambio.
+ */
+export async function gotoListing(
+  page: Page,
+  deadline: number,
+  log?: (msg: string) => void,
+): Promise<number> {
+  let lastCount = 0;
+
+  for (let attempt = 1; attempt <= LISTING_ATTEMPTS; attempt += 1) {
+    const remaining = Math.max(deadline - Date.now(), 0);
+    if (remaining <= 0) break;
+
+    await page.goto(URLS.restaurants, {
+      waitUntil: 'domcontentloaded',
+      timeout: Math.max(Math.min(remaining, 30_000), 1_000),
+    });
+
+    lastCount = await waitForAnyCard(page, Math.min(LISTING_ATTEMPT_MS, Math.max(deadline - Date.now(), 0)));
+    if (lastCount > 0) return lastCount;
+
+    // Backoff creciente antes de reintentar. Recargar de inmediato es
+    // contraproducente: una rafaga de cargas identicas es justo lo que hace
+    // que Rappi deje de servir el listado y devuelva su pagina estatica.
+    const backoff = Math.min(LISTING_BACKOFF_MS * 2 ** (attempt - 1), 20_000);
+    log?.(`intento ${attempt}: Rappi devolvio la variante sin listado; espero ${Math.round(backoff / 1000)}s y recargo`);
+    if (Date.now() + backoff >= deadline) break;
+    await sleep(backoff);
+  }
+
+  return lastCount;
+}
+
 /**
  * Punto de entrada del scraping. Devuelve tarjetas crudas deduplicadas.
  *
@@ -376,23 +432,15 @@ export async function harvestRestaurants(
 ): Promise<RawCard[]> {
   const deadline = Date.now() + opts.timeoutMs;
 
-  await page.goto(URLS.restaurants, {
-    waitUntil: 'domcontentloaded',
-    timeout: opts.timeoutMs,
-  });
-
-  // Se espera a la primera tarjeta, pero un cero aqui todavia no es fatal: la
-  // pasada de ofertas puede traer tarjetas por su cuenta. Solo el vacio en
-  // AMBAS pasadas significa que Rappi cambio su HTML.
-  await waitForAnyCard(page, Math.max(deadline - Date.now(), 0));
+  // Un cero aqui todavia no es fatal: la pasada de ofertas puede traer
+  // tarjetas por su cuenta. Solo el vacio en AMBAS pasadas significa que
+  // Rappi cambio su HTML.
+  await gotoListing(page, deadline, opts.log);
   const offers = await harvestOffersTab(page, deadline);
 
   // Volver al listado es una navegacion GET plana, nunca un boton de "atras"
   // de la app: asi no se depende del historial del SPA.
-  await page.goto(URLS.restaurants, {
-    waitUntil: 'domcontentloaded',
-    timeout: Math.max(deadline - Date.now(), 1_000),
-  });
+  await gotoListing(page, deadline, opts.log);
 
   const listing = await harvestMainListing(page, opts, deadline);
 

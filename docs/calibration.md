@@ -17,6 +17,57 @@ funcionando: preferimos un fallo ruidoso a una oferta inventada.
    la lista, para no perder compatibilidad si Rappi hace rollback.
 4. Actualiza los fixtures de `fixtures/` con markup real y corre `npm test`.
 
+## Calibracion hecha el 2026-08-31 (sesion real, cuenta en Chia)
+
+Los selectores dejaron de ser conjetura. Esto es lo que se confirmo en vivo:
+
+| Que | Selector real | Nota |
+|---|---|---|
+| Tarjeta | `[data-testid="store-item"]` | es un `<a>`; tambien `data-qa="store-item-restaurant-<id>"` |
+| Nombre | atributo `aria-label` de la tarjeta | mas limpio que el texto visible |
+| Badge | `[data-testid="percentage_tag"]` | textos reales: `56% OFF`, `Hasta 50% Off` |
+| Detalle | `[data-testid="store-item-detail"]` | tiempo de entrega y costo |
+| Avatar | `[data-qa="user-icon"]` | aparece ~4s DESPUES del domcontentloaded |
+
+**El hallazgo mas util: Rappi publica su propio estado** en el `<script
+id="__NEXT_DATA__">` de Next.js.
+
+```
+props.pageProps.location.city          -> "Chía"
+props.pageProps.commonData.isLoggedIn  -> true
+```
+
+Leer de ahi es mucho mas estable que adivinar clases CSS hasheadas, y es ahora
+la fuente primaria de `assertLoggedIn` y `assertAddressMatches`. Los selectores
+de DOM quedaron como respaldo.
+
+Esto ademas resolvio el riesgo 2 de la lista de abajo, que resulto ser real: el
+header muestra SOLO la calle (`Cl. 00 #0-00`), sin la palabra "Chia". Comparar
+contra ese texto habria dado `AddressError` con la direccion correcta.
+
+### El parser no necesito ni un cambio
+
+Los 15 badges reales de la pagina parsearon bien a la primera, incluido el
+rechazo de `$4,000 Off en Envío: Ver TyC` (es plata, no un porcentaje). El
+riesgo 7 de abajo (badges sin palabra clave tipo `50% en pizzas`) no se
+materializo: Rappi siempre escribe `OFF` u `Off`.
+
+### Lo dificil no fueron los selectores: fue Rappi sirviendo dos paginas
+
+La misma URL `/restaurantes` devuelve a veces el listado personalizado (30
+tarjetas) y a veces una pagina SEO de "Top Marcas y Cadenas" con CERO enlaces de
+restaurante. Se confirmo que no es un problema de selectores: en la variante
+mala, hasta el candidato generico `a[href*="/restaurantes/"]` cuenta cero.
+
+Peor: la variante mala se vuelve MAS frecuente cuanto mas rapido se recarga.
+Tras unas 15 cargas seguidas durante la calibracion, empezo a salir siempre.
+Parece mitigacion de bots.
+
+Por eso `gotoListing` reintenta con backoff exponencial (4s, 8s, 16s, 20s) en vez
+de recargar de inmediato. Si vas a depurar a mano, no martilles la pagina:
+espera unos minutos entre corridas o vas a estar depurando el throttling en vez
+de tu codigo.
+
 ## Riesgos conocidos, en orden de prioridad
 
 Esto sale de la revision de los modulos de navegador y de scraping.

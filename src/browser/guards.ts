@@ -22,6 +22,8 @@ import {
   LOGGED_OUT_INDICATOR,
   READ_ONLY_URL_PATTERNS,
   SAFE_METHODS,
+  STATIC_ASSET_PATTERN,
+  NEXT_DATA_ID,
 } from '../selectors.js';
 import { AddressError, ForbiddenActionError, SelectorError, SessionError } from '../errors.js';
 
@@ -66,9 +68,14 @@ export function getBlockedRequestCount(): number {
  * escritura y se aborta.
  */
 export function shouldAbort(url: string, method: string): boolean {
-  if (BLOCKED_URL_PATTERNS.some((pattern) => pattern.test(url))) return true;
-
   const isSafeMethod = (SAFE_METHODS as readonly string[]).includes(method.toUpperCase());
+
+  // Leer un archivo estatico nunca muta nada, aunque su ruta diga "checkout".
+  // Next.js mete el nombre de la pagina en la URL del chunk, asi que sin esta
+  // excepcion tumbamos bundles legitimos y con ellos el render de la SPA.
+  if (isSafeMethod && STATIC_ASSET_PATTERN.test(url)) return false;
+
+  if (BLOCKED_URL_PATTERNS.some((pattern) => pattern.test(url))) return true;
   if (isSafeMethod) return false;
 
   return READ_ONLY_URL_PATTERNS.some((pattern) => pattern.test(url));
@@ -192,6 +199,40 @@ export async function findFirst(
   return null;
 }
 
+
+/** Lo que nos interesa del estado que publica la app. */
+interface AppState {
+  isLoggedIn: boolean | null;
+  city: string | null;
+}
+
+/**
+ * Lee el estado que Rappi publica en su <script> de Next.js.
+ *
+ * Es la fuente primaria para sesion y ciudad: son datos de la propia app, no
+ * clases CSS hasheadas que cambian con cada despliegue. Devuelve null si el
+ * script no esta o no se puede parsear, y ahi el llamador cae al DOM.
+ */
+export async function readAppState(page: Page): Promise<AppState | null> {
+  try {
+    return await page.evaluate((id: string) => {
+      const el = document.getElementById(id);
+      if (el === null || el.textContent === null) return null;
+
+      const data = JSON.parse(el.textContent) as Record<string, any>;
+      const props = data?.props?.pageProps ?? {};
+      const flag = props?.commonData?.isLoggedIn ?? props?.isAuthUser ?? null;
+
+      return {
+        isLoggedIn: typeof flag === 'boolean' ? flag : null,
+        city: typeof props?.location?.city === 'string' ? props.location.city : null,
+      };
+    }, NEXT_DATA_ID);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Aborta si la sesion no esta claramente iniciada.
  *
@@ -199,6 +240,17 @@ export async function findFirst(
  * a ciegas produciria "sin ofertas" cuando en realidad no vimos nada.
  */
 export async function assertLoggedIn(page: Page): Promise<void> {
+  // Fuente primaria: el estado que publica la propia app.
+  const state = await readAppState(page);
+  if (state?.isLoggedIn === true) return;
+  if (state?.isLoggedIn === false) {
+    throw new SessionError(
+      'Rappi reporta la sesion como cerrada (isLoggedIn=false). ' +
+        'Corre `npm run login`, inicia sesion y confirma la direccion.',
+    );
+  }
+
+  // Respaldo por DOM cuando el estado no se pudo leer.
   const loggedOut = await findFirst(page, LOGGED_OUT_INDICATOR);
   if (loggedOut !== null) {
     throw new SessionError(
@@ -240,6 +292,20 @@ export function normalizeAddress(s: string): string {
  * significa que Rappi cambio su HTML, no que la direccion este mal.
  */
 export async function assertAddressMatches(page: Page, expected: string): Promise<void> {
+  // Fuente primaria: la ciudad que declara la app.
+  //
+  // El header muestra SOLO la calle ("Cl. 00 #0-00"), sin ciudad, asi que
+  // compararlo contra "Chia" daria AddressError con la direccion correcta.
+  // location.city si trae la ciudad como dato.
+  const state = await readAppState(page);
+  if (state?.city !== null && state?.city !== undefined) {
+    if (normalizeAddress(state.city).includes(normalizeAddress(expected))) return;
+    throw new AddressError(
+      `La ciudad activa en Rappi es "${state.city}" y esperaba "${expected}". ` +
+        'No la cambio: abre el navegador con `npm run login` y cambiala tu.',
+    );
+  }
+
   const locator = await findFirst(page, ADDRESS_INDICATOR);
   if (locator === null) {
     throw new SelectorError(

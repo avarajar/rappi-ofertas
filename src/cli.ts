@@ -11,18 +11,18 @@
  * scraping funciono y de verdad no habia nada >=50%.
  */
 
-import { createInterface } from 'node:readline';
 import { loadConfig, type Config } from './config.js';
 import { ScrapeTimeoutError, SelectorError, toRappiError } from './errors.js';
 import { launchSession, dumpDiagnostics } from './browser/session.js';
 import { assertLoggedIn, assertAddressMatches, getBlockedRequestCount } from './browser/guards.js';
-import { harvestRestaurants } from './scrape/restaurants.js';
+import { harvestRestaurants, gotoListing } from './scrape/restaurants.js';
 import { parseDiscount } from './parse/discount.js';
 import { parseScope } from './parse/scope.js';
 import { formatReport, formatFailure } from './report/format.js';
 import { sendToDiscord } from './notify/discord.js';
 import { appendRun, buildRecord } from './log/runlog.js';
 import { URLS } from './selectors.js';
+import type { Page } from 'playwright';
 import type { Offer } from './types.js';
 
 type Session = Awaited<ReturnType<typeof launchSession>>;
@@ -96,15 +96,52 @@ function makeLogger(verbose: boolean): (message: string) => void {
   };
 }
 
-/** Espera a que el usuario presione ENTER en la terminal. */
-function waitForEnter(prompt: string): Promise<void> {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(prompt, () => {
-      rl.close();
-      resolve();
-    });
-  });
+/** Cada cuanto se revisa si la sesion ya quedo lista, en ms. */
+const LOGIN_POLL_MS = 3_000;
+/** Cuanto se espera a que el usuario termine de iniciar sesion, en ms. */
+const LOGIN_WAIT_MS = 5 * 60_000;
+/**
+ * Cuanto espera `check` a que la SPA hidrate, en ms.
+ *
+ * Medido en vivo: tras domcontentloaded el avatar de sesion tarda unos 4s en
+ * aparecer. Verificar la sesion de inmediato es una carrera que se pierde, y se
+ * perderia como SessionError en cada corrida de cron.
+ */
+const READY_WAIT_MS = 90_000;
+
+/**
+ * Espera a que la sesion quede REALMENTE lista: logueada y en la direccion
+ * esperada.
+ *
+ * Antes esto esperaba un ENTER en la terminal, lo que tenia dos problemas:
+ * presionarlo antes de tiempo hacia fallar la corrida, y obligaba a que
+ * hubiera una persona frente al teclado. Consultar el estado real del DOM es
+ * la condicion que de verdad importa, y ademas permite que el comando lo
+ * dispare un agente o un script.
+ */
+async function waitForSessionReady(
+  page: Page,
+  expectedAddress: string,
+  log: (msg: string) => void,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    try {
+      await assertLoggedIn(page);
+      await assertAddressMatches(page, expectedAddress);
+      return;
+    } catch (err) {
+      log(`aun no listo: ${err instanceof Error ? err.message : String(err)}`);
+      await page.waitForTimeout(LOGIN_POLL_MS);
+    }
+  }
+
+  // Se acabo el tiempo: repetir las verificaciones sin atrapar el error, para
+  // que el usuario vea el motivo exacto y no un timeout generico.
+  await assertLoggedIn(page);
+  await assertAddressMatches(page, expectedAddress);
 }
 
 /**
@@ -172,12 +209,11 @@ async function runLogin(args: Args): Promise<number> {
     console.log('');
     console.log('No cierres la ventana: se cierra sola al terminar.');
     console.log('');
+    console.log('Esto detecta solo cuando la sesion quede lista. No hay que presionar nada.');
+    console.log(`Tiempo de espera: ${Math.round(LOGIN_WAIT_MS / 60_000)} minutos.`);
+    console.log('');
 
-    await waitForEnter('Cuando termines, vuelve aca y presiona ENTER... ');
-
-    console.log('Verificando sesion y direccion...');
-    await assertLoggedIn(session.page);
-    await assertAddressMatches(session.page, config.expectedAddress);
+    await waitForSessionReady(session.page, config.expectedAddress, log, LOGIN_WAIT_MS);
 
     // El DOM real es lo unico que permite calibrar los selectores.
     await dumpDiagnostics(session.page, LOG_DIR);
@@ -228,16 +264,24 @@ async function runCheck(args: Args): Promise<number> {
       const page = session.page;
 
       log(`navegando a ${URLS.restaurants}`);
-      await page.goto(URLS.restaurants, { waitUntil: 'domcontentloaded' });
-
+      // Una sola navegacion: `gotoListing` ya navega y reintenta. Hacer un goto
+      // extra aqui encadenaba dos cargas casi simultaneas de la misma URL, y
+      // eso es justo lo que hace que Rappi devuelva su pagina SEO sin
+      // tarjetas en vez del listado personalizado.
       log('verificando sesion y direccion');
-      await assertLoggedIn(page);
-      await assertAddressMatches(page, config!.expectedAddress);
+      // Rappi sirve dos variantes de /restaurantes y solo una trae tarjetas,
+      // asi que la navegacion con reintentos vive en gotoListing. La sesion se
+      // verifica DESPUES, ya sobre la variante buena: en la pagina SEO no hay
+      // ni estado de app ni avatar, y verificar ahi daria un SessionError
+      // falso.
+      await gotoListing(page, Date.now() + READY_WAIT_MS, log);
+      await waitForSessionReady(page, config!.expectedAddress, log, READY_WAIT_MS);
 
       log('recolectando tarjetas');
       const cards = await harvestRestaurants(page, {
         maxScrollSteps: config!.maxScrollSteps,
         timeoutMs: config!.scrapeTimeoutMs,
+        log,
       });
       cardsSeen = cards.length;
       log(`tarjetas vistas: ${cardsSeen}`);

@@ -15,6 +15,10 @@ export const URLS = {
 
 /** Contenedor de una tarjeta de restaurante en el listado. */
 export const RESTAURANT_CARD = [
+  // Confirmados contra el DOM real de Rappi (2026-08-31).
+  '[data-testid="store-item"]',
+  '[data-qa^="store-item-restaurant"]',
+  // Candidatos historicos: se dejan por si Rappi hace rollback.
   '[data-qa="store-card"]',
   '[data-testid="store-card"]',
   'a[href*="/restaurantes/"][data-qa]',
@@ -24,6 +28,8 @@ export const RESTAURANT_CARD = [
 
 /** Nombre del restaurante dentro de una tarjeta. */
 export const CARD_NAME = [
+  // El nombre real vive en el aria-label del <a> de la tarjeta; eso lo resuelve
+  // el extractor antes de llegar a esta lista. Esto es el respaldo.
   '[data-qa="store-name"]',
   '[data-testid="store-name"]',
   'h3',
@@ -41,6 +47,8 @@ export const CARD_NAME = [
  * no matchee nada (fallo ruidoso) a que matchee de mas (dato equivocado).
  */
 export const CARD_BADGE = [
+  // Confirmado contra el DOM real: "56% OFF", "Hasta 50% Off".
+  '[data-testid="percentage_tag"]',
   '[data-qa="discount-badge"]',
   '[data-testid="discount"]',
   '[class*="discount"]',
@@ -49,6 +57,8 @@ export const CARD_BADGE = [
 
 /** Texto secundario de la tarjeta (alcance, vigencia). */
 export const CARD_SUBTITLE = [
+  '[data-testid="store-item-detail"]',
+  '[data-qa="store-item-detail"]',
   '[data-qa="store-subtitle"]',
   '[class*="subtitle"]',
   '[class*="description"]',
@@ -65,7 +75,26 @@ export const OFFERS_TAB = [
 /** Texto que identifica la seccion de ofertas cuando no hay selector estable. */
 export const OFFERS_TAB_TEXT = /^(ofertas|descuentos|promociones)$/i;
 
-/** Elemento que muestra la direccion de entrega activa en el header. */
+/**
+ * Rappi es una app Next.js y publica su propio estado en este <script>.
+ *
+ * Leer de ahi es mucho mas estable que adivinar clases CSS hasheadas: trae la
+ * ciudad y el estado de sesion como datos, no como pixeles. Es la fuente
+ * primaria; los selectores de DOM quedan como respaldo.
+ *
+ *   props.pageProps.location.city      -> "Chía"
+ *   props.pageProps.commonData.isLoggedIn -> true
+ *   props.pageProps.isAuthUser
+ */
+export const NEXT_DATA_ID = '__NEXT_DATA__';
+
+/**
+ * Elemento que muestra la direccion de entrega activa en el header.
+ *
+ * Ojo: en vivo el header muestra SOLO la calle ("Cl. 00 #0-00"), sin la
+ * ciudad. Por eso la verificacion de Chia no puede depender de este texto y
+ * usa la ciudad de __NEXT_DATA__.
+ */
 export const ADDRESS_INDICATOR = [
   '[data-qa="address-label"]',
   '[data-testid="address"]',
@@ -76,6 +105,8 @@ export const ADDRESS_INDICATOR = [
 
 /** Presencia de cualquiera de estos = sesion iniciada. */
 export const LOGGED_IN_INDICATOR = [
+  // Confirmado: el avatar con la inicial del usuario.
+  '[data-qa="user-icon"]',
   '[data-qa="user-menu"]',
   '[data-testid="user-menu"]',
   'header [class*="avatar"]',
@@ -102,7 +133,6 @@ export const FORBIDDEN_CLICK_TEXT =
 export const BLOCKED_URL_PATTERNS: RegExp[] = [
   /\/cart/i,
   /\/checkout/i,
-  /\/orders?\b/i,
   /\/payment/i,
 ];
 
@@ -117,12 +147,31 @@ export const BLOCKED_URL_PATTERNS: RegExp[] = [
  * abortan aqui.
  */
 export const READ_ONLY_URL_PATTERNS: RegExp[] = [
+  // Visto en vivo: la home autenticada se alimenta de un GET a
+  // /api/user-order-home/v3/orders. Bloquearlo dejaba la pagina a medio
+  // renderizar. Leer pedidos no compra nada; comprar es un POST.
+  /\/orders?\b/i,
   /\/address/i,
   /\/account/i,
   /\/settings/i,
   /\/profile/i,
   /\/user\/preferences/i,
 ];
+
+/**
+ * Archivos estaticos: bundles, hojas de estilo, fuentes, imagenes.
+ *
+ * Next.js sirve chunks con la ruta de su pagina dentro de la URL, asi que un
+ * bundle legitimo puede llamarse .../chunks/pages/checkout/[storeType]-abc.js y
+ * matchear la deny-list sin ser una llamada de compra. Un archivo estatico no
+ * puede mutar nada: lo que compra es la peticion al API. Bloquearlos no suma
+ * seguridad y sí puede romper el render de la SPA, que es justo lo que
+ * necesitamos que funcione para poder leer las tarjetas.
+ *
+ * Solo aplica a metodos de lectura: un POST a un .js seguiria evaluandose.
+ */
+export const STATIC_ASSET_PATTERN =
+  /\/_next\/static\/|\.(?:js|mjs|css|map|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico)(?:\?|#|$)/i;
 
 /** Metodos que no mutan estado. Todo lo demas se considera escritura. */
 export const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'] as const;
