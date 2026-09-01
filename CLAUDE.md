@@ -94,6 +94,9 @@ el navegador es una capa delgada alrededor.
   ofertas.
 - **Texto exacto obligatorio** cuando no hay nada: `Sin ofertas ≥50% hoy.` — con
   ese caracter `≥` y ese punto final. Hay un test que lo fija.
+- **La ciudad del encabezado sale de `EXPECTED_ADDRESS`**, nunca fija en el
+  codigo. Estuvo fija en "Chía" y era un bug: alguien en otra ciudad recibia
+  ofertas correctas bajo un titulo falso. Hay tests que lo fijan.
 
 ## Development
 

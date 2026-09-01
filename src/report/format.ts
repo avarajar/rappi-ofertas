@@ -65,13 +65,20 @@ function omittedLine(count: number): string {
   return `… y ${count} más (recortado por el límite de Discord).`;
 }
 
-/** Arma el mensaje del reporte. `[]` produce el estado vacio exacto. */
-export function formatReport(offers: Offer[]): string {
+/**
+ * Arma el mensaje del reporte. `[]` produce el estado vacio exacto.
+ *
+ * @param city Ciudad que se muestra en el encabezado. Viene de la config, no
+ *   fija en el codigo: si dijera siempre "Chía", alguien en otra ciudad
+ *   recibiria ofertas correctas bajo un titulo falso.
+ */
+export function formatReport(offers: Offer[], city: string): string {
   if (offers.length === 0) return EMPTY_REPORT;
 
   const sorted = [...offers].sort(byRank);
+  const place = city.trim() === '' ? '' : ` — ${city.trim()}`;
   // El encabezado cuenta el total encontrado, no el total mostrado.
-  const header = `Ofertas Rappi ≥50% — Chía (${sorted.length})`;
+  const header = `Ofertas Rappi ≥50%${place} (${sorted.length})`;
   const lines = sorted.map(renderLine);
 
   const full = [header, ...lines].join('\n');
@@ -93,7 +100,7 @@ const FAILURE_HINT: Record<string, string> = {
   CONFIG: 'Falta o esta mal una variable de entorno. Revisa el archivo `.env` contra `.env.example`.',
   SESSION: 'La sesion de Rappi parece cerrada. Ejecuta `npm run login` e inicia sesion de nuevo.',
   ADDRESS:
-    'La direccion activa no es Chia. Ejecuta `npm run login` y confirma la direccion; el job nunca la cambia solo.',
+    'La direccion activa no es la esperada. Ejecuta `npm run login` y confirma la direccion; el job nunca la cambia solo.',
   SELECTOR:
     'Rappi probablemente cambio su HTML. Recalibra los selectores en `src/selectors.ts` (el volcado del DOM queda en `logs/`).',
   TIMEOUT: 'Rappi tardo demasiado en cargar. Reintenta; si se repite, revisa la conexion o sube el timeout.',

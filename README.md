@@ -1,185 +1,280 @@
-# rappi-ofertas
+<div align="center">
 
-Abre Rappi Colombia en un navegador con tu sesion, lee los restaurantes con
-descuento y avisa por Discord los que estan en 50% o mas.
+# 🍔 rappi-ofertas
 
-Corre a mano para probar, y por cron varias veces al dia.
+**Vigila Rappi Colombia y te avisa por Discord cuando hay restaurantes con 50% o más de descuento.**
 
----
+Corre solo, varias veces al día, en tu propio navegador con tu sesión.
 
-## Instalacion
+<br>
 
-```bash
-npm install
-```
+![Node](https://img.shields.io/badge/Node-22-5FA04E?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-1.62-2EAD33?logo=playwright&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-238%20passing-success)
+![Discord](https://img.shields.io/badge/Discord-webhook-5865F2?logo=discord&logoColor=white)
 
-Esto tambien descarga Chromium (unos 150 MB) para Playwright. La primera vez se
-demora.
-
----
-
-## Login inicial
-
-Solo se hace una vez.
-
-**1. Configura el webhook de Discord**
-
-```bash
-cp .env.example .env
-```
-
-Abre `.env` y pon tu webhook en `DISCORD_WEBHOOK_URL`. Para sacarlo: en Discord,
-sobre el canal donde quieres los avisos, **Editar canal > Integraciones >
-Webhooks > Nuevo webhook > Copiar URL**.
-
-**2. Inicia sesion en Rappi**
-
-```bash
-npm run login
-```
-
-Se abre una ventana de Chromium. Ahi:
-
-1. Inicia sesion en Rappi con tu cuenta.
-2. Cambia la direccion de entrega a **Chia**.
-3. Espera a que carguen los restaurantes.
-4. Vuelve a la terminal y presiona **ENTER**.
-
-El script verifica que la sesion este activa y que la direccion sea Chia, y te
-dice exactamente que fallo si algo no cuadra.
-
-La sesion queda guardada en `.browser-profile/` (un perfil de Chromium aparte,
-nunca tu Chrome del dia a dia). No hay que volver a hacer login salvo que Rappi
-expire la sesion; cuando eso pase, la corrida falla con un error `SESSION` y solo
-hay que repetir `npm run login`.
-
-`login` tambien guarda el DOM real en `logs/dom-*.html` y una captura en
-`logs/shot-*.png`. Sirven para calibrar los selectores (ver la ultima seccion).
+</div>
 
 ---
 
-## Uso
+## Qué recibes
 
-```bash
-npm run dry-run   # imprime el mensaje en pantalla, NO envia nada
-npm run check     # revisa y envia el reporte a Discord
+```
+Ofertas Rappi ≥50% — Chía (5)
+- Muy — 74% OFF — ⚠️ alcance no confirmado
+- Cali Mio - Pollo — 56% OFF — ⚠️ alcance no confirmado
+- La Cuadra — Hasta 54% Off (tope, puede ser menos) — ⚠️ solo productos seleccionados
+- Dunkin' — Hasta 50% Off (tope, puede ser menos) — ⚠️ alcance no confirmado
+- Kokoriko - Pollo — Hasta 50% Off (tope, puede ser menos) — ⚠️ solo primer pedido
 ```
 
-`dry-run` funciona sin webhook configurado, asi que puedes probar todo el
-pipeline antes de tocar Discord.
+Y cuando no hay nada, exactamente esto — ni una palabra más:
 
-Otras banderas:
-
-```bash
-node dist/cli.js check --headful   # con navegador visible, para depurar
-node dist/cli.js check --verbose   # log paso a paso
+```
+Sin ofertas ≥50% hoy.
 ```
 
-Codigos de salida: `0` si todo bien, `1` si algo fallo. El cron depende de eso.
+> **El mensaje vacío se envía siempre.** Así el silencio del canal significa una sola cosa:
+> el job está muerto. Nunca "hoy no había ofertas".
 
 ---
 
-## Corridas automaticas
+## Cómo funciona
 
-En macOS se usa `launchd`, no `cron`. La diferencia importa: si el Mac estaba
-dormido a la hora programada, launchd ejecuta el trabajo al despertar, mientras
-que cron simplemente pierde esa corrida sin avisar.
+```
+   ┌─────────────────┐
+   │  launchd 11/17/20│   tres veces al día; si el Mac dormía, corre al despertar
+   └────────┬─────────┘
+            ▼
+   ┌──────────────────┐
+   │ Chromium + sesión │   perfil propio en .browser-profile/, nunca tu Chrome diario
+   └────────┬──────────┘
+            ▼
+   ┌──────────────────┐
+   │  ¿sesión? ¿Chía?  │──✗──▶  para y avisa el fallo   (nunca sigue a medias)
+   └────────┬──────────┘
+            ▼
+   ┌──────────────────┐
+   │ scroll + tarjetas │   espera al DOM, no a un reloj
+   └────────┬──────────┘
+            ▼
+   ┌──────────────────┐
+   │ parseo + filtro   │   "56% OFF" ✓   "Hasta 50% Off" ✓   "$4.000 Off" ✗
+   └────────┬──────────┘
+            ▼
+        📨 Discord
+```
+
+---
+
+## Empezar
+
+```bash
+npm install                    # incluye la descarga de Chromium (~150 MB)
+cp .env.example .env           # pon tu webhook de Discord
+npm run login                  # inicia sesión y confirma tu dirección
+npm run dry-run                # prueba todo sin enviar nada
+```
+
+<details>
+<summary><b>Cómo sacar el webhook de Discord</b></summary>
+
+<br>
+
+En el canal donde quieras los avisos: **Editar canal → Integraciones → Webhooks → Nuevo webhook → Copiar URL**.
+
+Pégalo en `.env` como `DISCORD_WEBHOOK_URL`. No hace falta para `npm run dry-run`.
+
+</details>
+
+<details>
+<summary><b>Qué pasa en el login inicial</b></summary>
+
+<br>
+
+Se abre una ventana de Chromium. Inicias sesión con tu cuenta y confirmas que la dirección
+de entrega sea la tuya. **No tienes que presionar nada**: el script detecta solo cuándo la
+sesión quedó lista y se cierra.
+
+La sesión queda guardada en `.browser-profile/` y se reusa en todas las corridas siguientes.
+Solo vuelves a hacer login si expira — y cuando pase, te llega un aviso a Discord.
+
+</details>
+
+---
+
+## Comandos
+
+| Comando | Qué hace |
+|---|---|
+| `npm run login` | Login manual la primera vez. Guarda la sesión y vuelca el DOM real a `logs/`. |
+| `npm run dry-run` | Corre todo e imprime el mensaje. **No envía nada y no necesita webhook.** |
+| `npm run check` | La corrida real. Es la que usa el agendador. |
+| `npm test` | 238 tests. |
+| `npm run typecheck` | `tsc` sobre `src` y `tests`. |
+
+Códigos de salida: **`0`** éxito · **`1`** fallo. El agendador depende de eso.
+
+---
+
+## Configuración
+
+Todo vive en `.env`. Copia `.env.example` y ajusta:
+
+| Variable | Default | Para qué |
+|---|---|---|
+| `DISCORD_WEBHOOK_URL` | — | A dónde llega el reporte. Solo se necesita para `check`. |
+| `EXPECTED_ADDRESS` | `Chía` | Ciudad que debe estar activa. Se verifica ignorando tildes y **es lo que sale en el mensaje**. |
+| `BROWSER_PROFILE_DIR` | `.browser-profile` | Dónde vive la sesión guardada. |
+| `SCRAPE_TIMEOUT_MS` | `600000` | Tope de la corrida completa, con reintentos. |
+| `MAX_SCROLL_STEPS` | `40` | Cuánto baja por el listado. |
+
+---
+
+## Corridas automáticas
+
+En macOS se usa **`launchd`**, no `cron`, y la diferencia importa: si el Mac estaba dormido
+a la hora programada, launchd ejecuta el trabajo al despertar. Cron pierde esa corrida sin decir nada.
 
 ```bash
 ./scripts/install-schedule.sh              # 11:00, 17:00 y 20:00
 ./scripts/install-schedule.sh 9 14 19 22   # o las horas que quieras
 ```
 
-El script arma el plist con las rutas de tu maquina, lo instala en
-`~/Library/LaunchAgents/` y lo carga. Avisa si falta `dist/` o el perfil del
-navegador, que son los dos motivos por los que una corrida programada fallaria
-en silencio.
+El script arma el plist con las rutas de tu máquina y avisa si falta `dist/` o la sesión,
+que son los dos motivos por los que una corrida programada fallaría en silencio.
 
 ```bash
-launchctl list | grep rappi                                # 2o campo = ultimo exit code
-launchctl kickstart -p gui/$(id -u)/com.rappi-ofertas.check   # disparar ahora
-./scripts/uninstall-schedule.sh                            # quitar
+launchctl list | grep rappi                 # el 2º campo es el último exit code
+launchctl kickstart -p gui/$(id -u)/com.rappi-ofertas.check
+./scripts/uninstall-schedule.sh
 ```
 
-No reintenta al fallar, a proposito: recargar rapido es justo lo que hace que
-Rappi deje de servir el listado, y el fallo ya te llega por Discord.
-
-Ojo con el throttling: si depuras a mano, espera unos minutos entre corridas.
-Tras ~15 cargas seguidas Rappi empieza a devolver una pagina SEO sin tarjetas,
-y vas a estar depurando su mitigacion en vez de tu codigo.
+No reintenta al fallar, a propósito: recargar rápido es justo lo que hace que Rappi deje de
+servir el listado, y el fallo ya te llega por Discord.
 
 ---
 
-## Logs
+## 🔒 Reglas duras
 
-Cada corrida agrega una linea JSON a `logs/runs.jsonl`:
+Este script tiene acceso a una cuenta con métodos de pago guardados. Las garantías no son
+promesas en un comentario: están hechas cumplir en tres capas independientes.
 
-```json
-{"timestamp":"2026-08-28T16:00:00.000Z","durationMs":18452,"outcome":"success","cardsSeen":86,"candidatesParsed":19,"offersMatched":3,"dryRun":false}
-```
+| | Regla | Cómo se hace cumplir |
+|---|---|---|
+| **1** | Nunca compra | Deny-list de red: aborta toda petición a rutas de carrito, checkout, pedidos y pago. |
+| **2** | Nunca toca tu cuenta | Toda escritura a dirección, ajustes, perfil o pagos se aborta. Las lecturas sí pasan. |
+| **3** | Nunca inventa un descuento | Se imprime el texto literal de pantalla. Si no se puede leer, se omite el restaurante. |
+| **4** | Nunca sigue en mal estado | Sesión caída o ciudad distinta ⇒ para y avisa. Jamás cambia la dirección. |
+| **5** | Nunca falla en silencio | Selector roto, timeout o sesión muerta ⇒ fallo explícito, nunca un resultado vacío. |
 
-Cuando algo se rompa, mira en este orden:
+Además, **cada clic pasa por `safeClick`**, que lee el texto y el `aria-label` del elemento y
+se niega si parece un botón de compra. El scraper solo hace clic en pestañas y enlaces de tarjeta.
 
-| Campo | Que te dice |
-|---|---|
-| `outcome` | `success` o `failure`. |
-| `errorCode` | `SESSION` (hay que volver a hacer login), `ADDRESS` (la direccion no es Chia), `SELECTOR` (Rappi cambio su HTML), `TIMEOUT`, `NOTIFY` (fallo Discord), `CONFIG`. |
-| `cardsSeen` | Si es 0, el scraper quedo ciego. Eso es un fallo, nunca "no hay ofertas". |
-| `candidatesParsed` | Tarjetas con descuento legible. Si `cardsSeen` es alto y esto es 0, se rompio el parseo del badge. |
-| `failedSelector` | El selector exacto que fallo, cuando se sabe. |
-
-El mensaje "Sin ofertas ≥50% hoy." se envia **en toda corrida exitosa**. Asi, un
-canal en silencio significa siempre que el job murio, no que no hubo ofertas.
+> **Por qué `percent` nunca se imprime.** El porcentaje existe solo para filtrar y ordenar.
+> Lo que ves siempre es `literal`, el texto tal cual salió en pantalla. Por eso un `2x1` cuenta
+> como 50% para el filtro pero jamás se anuncia como "50%": ese número Rappi nunca lo mostró.
 
 ---
 
-## Reglas de seguridad
+## Cuando algo falle
 
-El script **solo lee**. Nunca:
+Te va a llegar un mensaje que empieza con ⚠️ y dice qué pasó. Esta tabla es el manual:
 
-- compra ni agrega nada al carrito,
-- hace un pedido ni pasa por checkout,
-- cambia la direccion de entrega,
-- toca ninguna configuracion de la cuenta.
+| Código | Qué pasó | Qué hacer |
+|---|---|---|
+| `SESSION` | La sesión de Rappi expiró | `npm run login` otra vez |
+| `ADDRESS` | La ciudad activa no es la esperada | `npm run login` y cámbiala tú. El job nunca la cambia solo. |
+| `SELECTOR` | No leyó ninguna tarjeta | **Primero sospecha del throttling**, no del HTML. Ver abajo. |
+| `TIMEOUT` | Rappi tardó demasiado | Reintenta; si se repite, sube `SCRAPE_TIMEOUT_MS` |
+| `NOTIFY` | Falló el envío a Discord | Revisa que el webhook siga vivo |
+| `CONFIG` | Falta una variable | Compara tu `.env` contra `.env.example` |
 
-Esto no depende de buena voluntad, esta forzado en el codigo por dos capas
-independientes:
+<details>
+<summary><b>⚠️ Sobre <code>SELECTOR</code>: casi nunca es lo que parece</b></summary>
 
-1. **Lista negra de red** (`installReadOnlyGuard`): aborta cualquier peticion a
-   URLs de `cart`, `checkout`, `order`, `payment`, `address`, `account`,
-   `settings` o `profile`, y cualquier peticion que no sea GET hacia ellas.
-   Agregar al carrito o cambiar una direccion es una llamada HTTP: si la llamada
-   no sale, el efecto no ocurre aunque se escape un clic.
-2. **`safeClick`**: todo clic pasa por ahi, y se niega si el texto o el
-   `aria-label` del elemento dice "agregar", "pedir", "comprar", "pagar",
-   "guardar" o "cambiar".
+<br>
 
-Ademas **se detiene en vez de continuar** si la sesion se cayo o si la direccion
-activa no es Chia. No hay modo degradado: prefiere fallar y avisar antes que
-reportar datos de otra ciudad o de una cuenta deslogueada.
+Rappi devuelve **dos variantes distintas** de la misma URL: el listado personalizado con
+tarjetas, y una página SEO de "Top Marcas y Cadenas" que no tiene ninguna. Es aleatorio por
+petición, y empeora cuanto más rápido recargas.
 
-Y nunca inventa un descuento: si el texto de la tarjeta no se puede leer con
-certeza, ese restaurante se omite. Lo que se imprime es siempre el texto literal
-de la pantalla (`50% OFF`, `hasta 60%`, `2x1`), nunca un porcentaje calculado.
+Medido cargando el listado diez veces seguidas:
+
+```
+directo:              30 · 0 · 30 · 30 · 0     ~60% de éxito
+pasando por la home:   0 · 30 ·  0 ·  0 · 0    peor: más peticiones, más throttling
+```
+
+Por eso cada corrida gasta **una sola navegación** y reintenta pocas veces bien espaciadas
+(15s → 30s → 60s). Si depuras a mano, **espera entre intentos** o estarás depurando su
+mitigación de bots en vez de tu código.
+
+Solo si `SELECTOR` se repite durante todo un día es realmente un cambio de HTML.
+
+</details>
 
 ---
 
 ## Cuando Rappi cambie su HTML
 
-Va a pasar. Cuando pase, el sintoma es un mensaje de fallo en Discord con codigo
-`SELECTOR` y `cardsSeen: 0` en el log.
+Va a pasar. Todo lo frágil está aislado en **un solo archivo**: [`src/selectors.ts`](src/selectors.ts).
 
-**El arreglo es editar un solo archivo: `src/selectors.ts`.** Ahi viven todos los
-selectores CSS y patrones de texto. Cada entrada es una lista de candidatos que
-se prueban en orden, asi que muchas veces basta con agregar el nuevo selector al
-principio de la lista.
+1. `npm run login` — vuelca el DOM real a `logs/dom-<timestamp>.html`
+2. Compara contra `fixtures/` y ajusta `src/selectors.ts`
+3. Cada selector es una **lista de candidatos** que se prueban en orden: agrega el nuevo
+   al principio en vez de reemplazar, así no pierdes compatibilidad si hacen rollback
+4. Actualiza los fixtures y corre `npm test`
 
-Para saber cual se rompio:
+📄 **[`docs/calibration.md`](docs/calibration.md)** tiene los selectores reales confirmados
+contra el sitio en vivo, y las zonas de riesgo en orden de prioridad.
 
-1. Corre `npm test`. Los tests de fixtures (`tests/*.test.ts` contra los HTML de
-   `fixtures/`) prueban la extraccion del DOM sin red, y el que falle te dice si
-   se rompio el nombre, el badge o el subtitulo.
-2. Corre `npm run login` de nuevo para volcar el DOM autenticado real a
-   `logs/dom-*.html`, y busca ahi como se llama ahora el elemento.
-3. Actualiza `src/selectors.ts`, actualiza el fixture correspondiente en
-   `fixtures/` y vuelve a correr `npm test`.
+---
+
+## Arquitectura
+
+```
+src/
+├── cli.ts                  login | check ; --dry-run --headful --verbose
+├── config.ts               carga y valida .env, falla ruidosamente
+├── errors.ts               jerarquía de errores tipados
+├── selectors.ts            ⚠️  TODOS los selectores de Rappi, aislados aquí
+├── browser/
+│   ├── session.ts          launchPersistentContext, login visible, corrida headless
+│   └── guards.ts           deny-list de red, safeClick, sesión y ciudad
+├── scrape/restaurants.ts   navegación con reintentos, scroll infinito, cosecha
+├── parse/discount.ts       🧪 PURO: texto → descuento | null
+├── parse/scope.ts          🧪 PURO: texto → alcance + vigencia
+├── report/format.ts        🧪 PURO: ofertas → mensaje
+├── notify/discord.ts       POST al webhook con reintentos
+└── log/runlog.ts           una línea JSONL por corrida
+```
+
+Los módulos **🧪 PURO** reciben strings y devuelven datos: sin navegador y sin red. Ahí vive
+la lógica riesgosa y ahí se concentran los tests. Todo lo que toca el navegador es una capa
+delgada alrededor.
+
+La extracción del DOM se prueba contra **fixtures HTML guardados**, sin red, así los tests son
+deterministas y además señalan cuál selector se rompió.
+
+---
+
+## Logs
+
+Una línea JSON por corrida en `logs/runs.jsonl`:
+
+```json
+{"timestamp":"2026-09-01T16:00:10Z","outcome":"success","cardsSeen":30,
+ "candidatesParsed":24,"offersMatched":5,"durationMs":5077,"dryRun":false}
+```
+
+`cardsSeen: 0` con `outcome: failure` es la firma de que Rappi no entregó el listado.
+`candidatesParsed` alto con `offersMatched: 0` significa que sí leyó descuentos, pero
+ninguno llegaba al 50%.
+
+---
+
+<div align="center">
+<sub>Solo lectura y navegación. Nunca compra, nunca cambia tu cuenta, nunca inventa un descuento.</sub>
+</div>

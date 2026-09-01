@@ -19,6 +19,8 @@ import { formatReport, EMPTY_REPORT } from '../src/report/format.js';
 import type { Offer, RawCard } from '../src/types.js';
 
 const MIN_PERCENT = 50;
+/** La ciudad ya no esta fija en el formateador: se le pasa. */
+const CITY = 'Chía';
 
 /** Replica exactamente la cadena de cli.ts sobre un set de tarjetas. */
 function buildOffers(cards: RawCard[]): Offer[] {
@@ -62,7 +64,7 @@ describe('pipeline completo sobre fixtures', () => {
   it('produce un mensaje coherente desde el listado principal', async () => {
     const cards = await load('listing-sample.html');
     const offers = buildOffers(dedupeByName(cards));
-    const message = formatReport(offers);
+    const message = formatReport(offers, CITY);
 
     console.log('\n--- MENSAJE GENERADO (listing) ---\n' + message + '\n---\n');
 
@@ -81,7 +83,7 @@ describe('pipeline completo sobre fixtures', () => {
   it('nunca reescribe 2x1 ni "hasta X%" como porcentaje plano', async () => {
     const cards = await load('listing-sample.html');
     const offers = buildOffers(dedupeByName(cards));
-    const message = formatReport(offers);
+    const message = formatReport(offers, CITY);
 
     for (const offer of offers) {
       // Lo que se imprime es SIEMPRE el texto literal de pantalla.
@@ -100,7 +102,7 @@ describe('pipeline completo sobre fixtures', () => {
   it('marca explicitamente el alcance que no es menu completo', async () => {
     const cards = await load('listing-sample.html');
     const offers = buildOffers(dedupeByName(cards));
-    const message = formatReport(offers);
+    const message = formatReport(offers, CITY);
 
     for (const offer of offers) {
       if (offer.scope === 'full-menu') continue;
@@ -117,7 +119,7 @@ describe('pipeline completo sobre fixtures', () => {
     const cards = await extractCardsFromPage(page, 'ofertas');
     expect(cards.length).toBeGreaterThan(0);
 
-    const message = formatReport(buildOffers(dedupeByName(cards)));
+    const message = formatReport(buildOffers(dedupeByName(cards)), CITY);
     console.log('\n--- MENSAJE GENERADO (ofertas) ---\n' + message + '\n---\n');
     expect(message.length).toBeGreaterThan(0);
   });
@@ -131,14 +133,14 @@ describe('pipeline completo sobre fixtures', () => {
     const cards = await extractCardsFromPage(page, 'listing');
     expect(cards).toHaveLength(1);
 
-    const message = formatReport(buildOffers(cards));
+    const message = formatReport(buildOffers(cards), CITY);
     expect(message).toBe('Sin ofertas ≥50% hoy.');
     expect(message).toBe(EMPTY_REPORT);
   });
 
   it('el mensaje cabe en el limite de Discord', async () => {
     const cards = await load('listing-sample.html');
-    const message = formatReport(buildOffers(dedupeByName(cards)));
+    const message = formatReport(buildOffers(dedupeByName(cards)), CITY);
     expect(message.length).toBeLessThanOrEqual(2000);
   });
 });

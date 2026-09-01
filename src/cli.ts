@@ -321,7 +321,7 @@ async function runCheck(args: Args): Promise<number> {
 
     await withTimeout(scrape(), config.scrapeTimeoutMs, 'La revision');
 
-    const message = formatReport(offers);
+    const message = formatReport(offers, config.expectedAddress);
     await deliver(message, config, args.dryRun);
 
     appendRun(

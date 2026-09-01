@@ -19,33 +19,33 @@ const exact = (p: number, literal = `${p}% OFF`): ParsedDiscount => ({
 
 describe('formatReport: estado vacio', () => {
   it('devuelve EXACTAMENTE el texto acordado, sin nada mas', () => {
-    expect(formatReport([])).toBe('Sin ofertas ≥50% hoy.');
+    expect(formatReport([], 'Chía')).toBe('Sin ofertas ≥50% hoy.');
   });
 
   it('no tiene espacios al principio ni al final', () => {
-    const out = formatReport([]);
+    const out = formatReport([], 'Chía');
     expect(out).toBe(out.trim());
   });
 
   it('usa el caracter ≥ real, no ">="', () => {
-    const out = formatReport([]);
+    const out = formatReport([], 'Chía');
     expect(out).toContain('≥');
     expect(out).not.toContain('>=');
   });
 
   it('es una sola linea', () => {
-    expect(formatReport([]).split('\n')).toHaveLength(1);
+    expect(formatReport([], 'Chía').split('\n')).toHaveLength(1);
   });
 });
 
 describe('formatReport: encabezado', () => {
   it('incluye la cantidad de ofertas', () => {
-    const out = formatReport([offer('A', exact(60)), offer('B', exact(55))]);
+    const out = formatReport([offer('A', exact(60)), offer('B', exact(55))], 'Chía');
     expect(out.split('\n')[0]).toContain('(2)');
   });
 
   it('el encabezado no se confunde con el estado vacio', () => {
-    const out = formatReport([offer('A', exact(60))]);
+    const out = formatReport([offer('A', exact(60))], 'Chía');
     expect(out).not.toContain('Sin ofertas');
   });
 });
@@ -56,7 +56,7 @@ describe('formatReport: orden', () => {
       offer('Bajo', exact(50)),
       offer('Alto', exact(90)),
       offer('Medio', exact(70)),
-    ]);
+    ], 'Chía');
     const lines = out.split('\n').slice(1);
     expect(lines.map((l) => l.split(' — ')[0])).toEqual(['- Alto', '- Medio', '- Bajo']);
   });
@@ -66,26 +66,26 @@ describe('formatReport: orden', () => {
       offer('Zeta', exact(60)),
       offer('Alfa', exact(60)),
       offer('Mika', exact(60)),
-    ]);
+    ], 'Chía');
     const lines = out.split('\n').slice(1);
     expect(lines.map((l) => l.split(' — ')[0])).toEqual(['- Alfa', '- Mika', '- Zeta']);
   });
 
   it('no muta el arreglo de entrada', () => {
     const offers = [offer('Bajo', exact(50)), offer('Alto', exact(90))];
-    formatReport(offers);
+    formatReport(offers, 'Chía');
     expect(offers.map((o) => o.name)).toEqual(['Bajo', 'Alto']);
   });
 
   it('dos llamadas con el mismo insumo dan el mismo texto', () => {
     const offers = [offer('B', exact(60)), offer('A', exact(60)), offer('C', exact(80))];
-    expect(formatReport(offers)).toBe(formatReport([...offers].reverse()));
+    expect(formatReport(offers, 'Chía')).toBe(formatReport([...offers].reverse(), 'Chía'));
   });
 });
 
 describe('formatReport: literal verbatim', () => {
   it('imprime el literal tal cual, nunca un porcentaje reconstruido', () => {
-    const out = formatReport([offer('Sushi Uno', exact(60, 'Hasta 60 % dcto'))]);
+    const out = formatReport([offer('Sushi Uno', exact(60, 'Hasta 60 % dcto'))], 'Chía');
     expect(out).toContain('Hasta 60 % dcto');
   });
 
@@ -93,7 +93,7 @@ describe('formatReport: literal verbatim', () => {
     // Se inspecciona la linea de la oferta: el encabezado lleva el "≥50%" del filtro.
     const line = formatReport([
       offer('Burger Dos', { percent: 50, literal: '2x1', kind: '2x1' }),
-    ]).split('\n')[1];
+    ], 'Chía').split('\n')[1];
     expect(line).toContain('2x1');
     expect(line).not.toMatch(/\d+\s*%/);
   });
@@ -101,7 +101,7 @@ describe('formatReport: literal verbatim', () => {
   it('un 2x1 escrito en palabras tambien se marca como 2x1', () => {
     const line = formatReport([
       offer('Burger Dos', { percent: 50, literal: 'Lleva 2 paga 1', kind: '2x1' }),
-    ]).split('\n')[1];
+    ], 'Chía').split('\n')[1];
     expect(line).toContain('Lleva 2 paga 1');
     expect(line).toContain('2x1');
     expect(line).not.toMatch(/\d+\s*%/);
@@ -110,7 +110,7 @@ describe('formatReport: literal verbatim', () => {
   it('un techo se marca como techo y no como descuento plano', () => {
     const out = formatReport([
       offer('Pizza Tres', { percent: 60, literal: 'hasta 60%', kind: 'upto' }),
-    ]);
+    ], 'Chía');
     expect(out).toContain('hasta 60%');
     expect(out).toMatch(/tope/i);
   });
@@ -118,25 +118,25 @@ describe('formatReport: literal verbatim', () => {
 
 describe('formatReport: alcance explicito', () => {
   it('menu completo se muestra sin advertencia', () => {
-    const out = formatReport([offer('A', exact(60), 'full-menu')]);
+    const out = formatReport([offer('A', exact(60), 'full-menu')], 'Chía');
     expect(out).toContain('todo el menú');
     expect(out).not.toContain('⚠️');
   });
 
   it('productos seleccionados se marca con advertencia', () => {
-    const out = formatReport([offer('A', exact(60), 'selected-items')]);
+    const out = formatReport([offer('A', exact(60), 'selected-items')], 'Chía');
     expect(out).toContain('⚠️ solo productos seleccionados');
     expect(out).not.toContain('todo el menú');
   });
 
   it('primer pedido se marca con advertencia', () => {
-    const out = formatReport([offer('A', exact(60), 'first-order')]);
+    const out = formatReport([offer('A', exact(60), 'first-order')], 'Chía');
     expect(out).toContain('⚠️ solo primer pedido');
     expect(out).not.toContain('todo el menú');
   });
 
   it('alcance desconocido se declara, nunca se asume menu completo', () => {
-    const out = formatReport([offer('A', exact(60), 'unknown')]);
+    const out = formatReport([offer('A', exact(60), 'unknown')], 'Chía');
     expect(out).toContain('⚠️ alcance no confirmado');
     expect(out).not.toContain('todo el menú');
   });
@@ -147,7 +147,7 @@ describe('formatReport: alcance explicito', () => {
       offer('B', exact(80), 'selected-items'),
       offer('C', exact(70), 'first-order'),
       offer('D', exact(60), 'unknown'),
-    ]);
+    ], 'Chía');
     const lines = out.split('\n').slice(1);
     expect(lines[0]).toContain('todo el menú');
     expect(lines[1]).toContain('⚠️ solo productos seleccionados');
@@ -160,12 +160,12 @@ describe('formatReport: fecha limite', () => {
   it('agrega la fecha verbatim cuando existe', () => {
     const out = formatReport([
       offer('A', exact(60), 'selected-items', 'válido hasta el 31 de agosto'),
-    ]);
+    ], 'Chía');
     expect(out).toContain('válido hasta el 31 de agosto');
   });
 
   it('no agrega nada cuando no hay fecha', () => {
-    const out = formatReport([offer('A', exact(60), 'full-menu', null)]);
+    const out = formatReport([offer('A', exact(60), 'full-menu', null)], 'Chía');
     expect(out.split('\n')[1]).toBe('- A — 60% OFF — todo el menú');
   });
 });
@@ -182,19 +182,19 @@ describe('formatReport: limite de 2000 caracteres de Discord', () => {
     );
 
   it('un mensaje corto no se recorta', () => {
-    const out = formatReport(many(3));
+    const out = formatReport(many(3), 'Chía');
     expect(out.length).toBeLessThanOrEqual(DISCORD_LIMIT);
     expect(out).not.toMatch(/más/);
   });
 
   it('un mensaje largo se recorta por debajo del limite', () => {
-    const out = formatReport(many(200));
+    const out = formatReport(many(200), 'Chía');
     expect(out.length).toBeLessThanOrEqual(DISCORD_LIMIT);
   });
 
   it('dice cuantas ofertas se omitieron y el numero cuadra', () => {
     const total = 200;
-    const out = formatReport(many(total));
+    const out = formatReport(many(total), 'Chía');
     const lines = out.split('\n');
     const last = lines[lines.length - 1] ?? '';
     const match = /y (\d+) más/.exec(last);
@@ -206,12 +206,12 @@ describe('formatReport: limite de 2000 caracteres de Discord', () => {
   });
 
   it('el encabezado sigue reportando el total real, no el mostrado', () => {
-    const out = formatReport(many(200));
+    const out = formatReport(many(200), 'Chía');
     expect(out.split('\n')[0]).toContain('(200)');
   });
 
   it('conserva las ofertas de mayor porcentaje al recortar', () => {
-    const out = formatReport(many(200));
+    const out = formatReport(many(200), 'Chía');
     expect(out.split('\n')[1]).toContain('99% OFF');
   });
 });
@@ -266,5 +266,36 @@ describe('formatFailure', () => {
   it('cabe en un mensaje de Discord', () => {
     const out = formatFailure('SELECTOR', 'x'.repeat(3000));
     expect(out.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+  });
+});
+
+describe('formatReport: la ciudad viene de la config, no fija en el codigo', () => {
+  const uno = [
+    {
+      name: 'A',
+      discount: { percent: 60, literal: '60% OFF', kind: 'exact' as const },
+      scope: 'full-menu' as const,
+      deadline: null,
+      href: null,
+    },
+  ];
+
+  it('usa la ciudad que le pasan', () => {
+    expect(formatReport(uno, 'Medellín')).toContain('Medellín');
+  });
+
+  // El bug que esto fija: el encabezado decia "Chía" siempre, asi que alguien
+  // en otra ciudad recibia ofertas correctas bajo un titulo falso.
+  it('no menciona Chía cuando la ciudad es otra', () => {
+    expect(formatReport(uno, 'Medellín')).not.toContain('Chía');
+  });
+
+  it('omite el separador si no hay ciudad configurada', () => {
+    const out = formatReport(uno, '   ');
+    expect(out.split('\n')[0]).toBe('Ofertas Rappi ≥50% (1)');
+  });
+
+  it('el estado vacio no cambia con la ciudad', () => {
+    expect(formatReport([], 'Medellín')).toBe('Sin ofertas ≥50% hoy.');
   });
 });
