@@ -94,6 +94,11 @@ el navegador es una capa delgada alrededor.
   ofertas.
 - **Texto exacto obligatorio** cuando no hay nada: `Sin ofertas ≥50% hoy.` — con
   ese caracter `≥` y ese punto final. Hay un test que lo fija.
+- **El pais sale de `RAPPI_COUNTRY`** y decide el dominio (`src/countries.ts`,
+  ocho paises hispanohablantes verificados uno por uno contra el sitio real).
+  Se verifica contra `location.country` del estado de la app. Brasil se excluye
+  a proposito: el sitio esta en portugues y los parsers solo entienden espanol,
+  asi que aceptarlo daria "sin ofertas" habiendo promociones.
 - **La ciudad del encabezado sale de `EXPECTED_ADDRESS`**, nunca fija en el
   codigo. Estuvo fija en "Chía" y era un bug: alguien en otra ciudad recibia
   ofertas correctas bajo un titulo falso. Hay tests que lo fijan.

@@ -125,10 +125,41 @@ Todo vive en `.env`. Copia `.env.example` y ajusta:
 | Variable | Default | Para qué |
 |---|---|---|
 | `DISCORD_WEBHOOK_URL` | — | A dónde llega el reporte. Solo se necesita para `check`. |
+| `RAPPI_COUNTRY` | `co` | País de Rappi. Decide el dominio. Ver tabla abajo. |
 | `EXPECTED_ADDRESS` | `Chía` | Ciudad que debe estar activa. Se verifica ignorando tildes y **es lo que sale en el mensaje**. |
 | `BROWSER_PROFILE_DIR` | `.browser-profile` | Dónde vive la sesión guardada. |
 | `SCRAPE_TIMEOUT_MS` | `600000` | Tope de la corrida completa, con reintentos. |
 | `MAX_SCROLL_STEPS` | `40` | Cuánto baja por el listado. |
+
+### Países soportados
+
+Los dominios **no siguen un patrón**, así que cada uno se verificó contra el sitio real
+en vez de deducirlo — y deducir habría fallado en tres de ocho.
+
+| `RAPPI_COUNTRY` | País | Dominio |
+|---|---|---|
+| `co` | Colombia | `rappi.com.co` |
+| `mx` | México | `rappi.com.mx` |
+| `ar` | Argentina | `rappi.com.ar` |
+| `cl` | Chile | `rappi.cl` ← *no* `.com.cl` |
+| `pe` | Perú | `rappi.com.pe` ← *no* `rappi.pe` |
+| `uy` | Uruguay | `rappi.com.uy` |
+| `cr` | Costa Rica | `rappi.co.cr` ← *no* `.com.cr` |
+| `ec` | Ecuador | `rappi.com.ec` |
+
+Al arrancar se compara `RAPPI_COUNTRY` contra el país que Rappi reporta en su propio
+estado. Si no coinciden —típicamente porque la sesión guardada es de otro país— para y avisa.
+
+> **🇧🇷 Brasil no está, a propósito.** El sitio está en portugués y los parsers de descuento
+> y alcance solo entienden español: `hasta` no es `até`, `productos seleccionados` no es
+> `produtos selecionados`. Agregar el dominio sin traducir los patrones daría corridas que
+> reportan "sin ofertas" habiendo promociones — el peor fallo posible aquí. Requiere trabajo
+> real en `parse/discount.ts` y `parse/scope.ts`, y badges reales contra los cuales probarlo.
+
+> **⚠️ Solo Colombia está probado end-to-end.** Los otros siete comparten la misma app de
+> Next.js, así que los selectores casi con certeza sirven — pero "casi con certeza" no es
+> "verificado", y solo se puede confirmar con una cuenta en ese país. Si algo no calza,
+> falla ruidosamente y `docs/calibration.md` explica cómo recalibrar.
 
 ---
 

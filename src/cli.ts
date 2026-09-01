@@ -14,14 +14,18 @@
 import { loadConfig, type Config } from './config.js';
 import { ScrapeTimeoutError, SelectorError, toRappiError } from './errors.js';
 import { launchSession, dumpDiagnostics } from './browser/session.js';
-import { assertLoggedIn, assertAddressMatches, getBlockedRequestCount } from './browser/guards.js';
+import {
+  assertLoggedIn,
+  assertAddressMatches,
+  assertCountryMatches,
+  getBlockedRequestCount,
+} from './browser/guards.js';
 import { harvestRestaurants, gotoListing } from './scrape/restaurants.js';
 import { parseDiscount } from './parse/discount.js';
 import { parseScope } from './parse/scope.js';
 import { formatReport, formatFailure } from './report/format.js';
 import { sendToDiscord } from './notify/discord.js';
 import { appendRun, buildRecord } from './log/runlog.js';
-import { URLS } from './selectors.js';
 import type { Page } from 'playwright';
 import type { Offer } from './types.js';
 
@@ -121,7 +125,7 @@ const READY_WAIT_MS = 300_000;
  */
 async function waitForSessionReady(
   page: Page,
-  expectedAddress: string,
+  config: Config,
   log: (msg: string) => void,
   timeoutMs: number,
 ): Promise<void> {
@@ -130,7 +134,8 @@ async function waitForSessionReady(
   while (Date.now() < deadline) {
     try {
       await assertLoggedIn(page);
-      await assertAddressMatches(page, expectedAddress);
+      await assertCountryMatches(page, config.country.isoCode);
+      await assertAddressMatches(page, config.expectedAddress);
       return;
     } catch (err) {
       log(`aun no listo: ${err instanceof Error ? err.message : String(err)}`);
@@ -141,7 +146,8 @@ async function waitForSessionReady(
   // Se acabo el tiempo: repetir las verificaciones sin atrapar el error, para
   // que el usuario vea el motivo exacto y no un timeout generico.
   await assertLoggedIn(page);
-  await assertAddressMatches(page, expectedAddress);
+  await assertCountryMatches(page, config.country.isoCode);
+  await assertAddressMatches(page, config.expectedAddress);
 }
 
 /**
@@ -196,8 +202,8 @@ async function runLogin(args: Args): Promise<number> {
   });
 
   try {
-    log(`navegando a ${URLS.restaurants}`);
-    await session.page.goto(URLS.restaurants, { waitUntil: 'domcontentloaded' });
+    log(`navegando a ${config.urls.restaurants}`);
+    await session.page.goto(config.urls.restaurants, { waitUntil: 'domcontentloaded' });
 
     console.log('');
     console.log('=== Configuracion inicial de la sesion ===');
@@ -213,7 +219,7 @@ async function runLogin(args: Args): Promise<number> {
     console.log(`Tiempo de espera: ${Math.round(LOGIN_WAIT_MS / 60_000)} minutos.`);
     console.log('');
 
-    await waitForSessionReady(session.page, config.expectedAddress, log, LOGIN_WAIT_MS);
+    await waitForSessionReady(session.page, config, log, LOGIN_WAIT_MS);
 
     // El DOM real es lo unico que permite calibrar los selectores.
     await dumpDiagnostics(session.page, LOG_DIR);
@@ -263,7 +269,7 @@ async function runCheck(args: Args): Promise<number> {
       browser.session = session;
       const page = session.page;
 
-      log(`navegando a ${URLS.restaurants}`);
+      log(`navegando a ${config!.urls.restaurants} (${config!.country.name})`);
       // Una sola navegacion: `gotoListing` ya navega y reintenta. Hacer un goto
       // extra aqui encadenaba dos cargas casi simultaneas de la misma URL, y
       // eso es justo lo que hace que Rappi devuelva su pagina SEO sin
@@ -274,13 +280,14 @@ async function runCheck(args: Args): Promise<number> {
       // verifica DESPUES, ya sobre la variante buena: en la pagina SEO no hay
       // ni estado de app ni avatar, y verificar ahi daria un SessionError
       // falso.
-      await gotoListing(page, Date.now() + READY_WAIT_MS, log);
-      await waitForSessionReady(page, config!.expectedAddress, log, READY_WAIT_MS);
+      await gotoListing(page, config!.urls.restaurants, Date.now() + READY_WAIT_MS, log);
+      await waitForSessionReady(page, config!, log, READY_WAIT_MS);
 
       log('recolectando tarjetas');
       const cards = await harvestRestaurants(page, {
         maxScrollSteps: config!.maxScrollSteps,
         timeoutMs: config!.scrapeTimeoutMs,
+        listingUrl: config!.urls.restaurants,
         log,
         alreadyOnListing: true,
       });

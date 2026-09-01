@@ -20,7 +20,6 @@ import {
   OFFERS_TAB,
   OFFERS_TAB_TEXT,
   RESTAURANT_CARD,
-  URLS,
 } from '../selectors.js';
 import { findFirst, safeClick } from '../browser/guards.js';
 
@@ -39,6 +38,8 @@ const DETAIL_TIMEOUT_MS = 20_000;
 export interface HarvestOptions {
   maxScrollSteps: number;
   timeoutMs: number;
+  /** URL del listado. Depende del pais configurado. */
+  listingUrl: string;
   /** Opcional: para ver los reintentos de navegacion con --verbose. */
   log?: (msg: string) => void;
   /**
@@ -293,7 +294,7 @@ export function dedupeByName(cards: RawCard[]): RawCard[] {
 function throwNoCards(): never {
   const tried = RESTAURANT_CARD.join(', ');
   throw new SelectorError(
-    `No se encontro ninguna tarjeta de restaurante en ${URLS.restaurants}. ` +
+    'No se encontro ninguna tarjeta de restaurante en el listado. ' +
       `Esto NO significa que no haya ofertas: significa que Rappi cambio su HTML. ` +
       `Selectores probados: ${tried}`,
     tried,
@@ -406,6 +407,7 @@ const LISTING_BACKOFF_MS = 15_000;
  */
 export async function gotoListing(
   page: Page,
+  url: string,
   deadline: number,
   log?: (msg: string) => void,
 ): Promise<number> {
@@ -415,7 +417,7 @@ export async function gotoListing(
     const remaining = Math.max(deadline - Date.now(), 0);
     if (remaining <= 0) break;
 
-    await page.goto(URLS.restaurants, {
+    await page.goto(url, {
       waitUntil: 'domcontentloaded',
       timeout: Math.max(Math.min(remaining, 30_000), 1_000),
     });
@@ -450,7 +452,7 @@ export async function harvestRestaurants(
   // tarjetas por su cuenta. Solo el vacio en AMBAS pasadas significa que
   // Rappi cambio su HTML.
   if (opts.alreadyOnListing !== true) {
-    await gotoListing(page, deadline, opts.log);
+    await gotoListing(page, opts.listingUrl, deadline, opts.log);
   }
 
   const before = page.url();
@@ -461,7 +463,7 @@ export async function harvestRestaurants(
   // recargar aqui era una peticion regalada, y cada peticion de mas acerca la
   // corrida a la variante SEO sin tarjetas.
   if (page.url() !== before) {
-    await gotoListing(page, deadline, opts.log);
+    await gotoListing(page, opts.listingUrl, deadline, opts.log);
   }
 
   const listing = await harvestMainListing(page, opts, deadline);

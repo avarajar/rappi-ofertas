@@ -1,10 +1,14 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ConfigError } from './errors.js';
+import { resolveCountry, urlsFor, type Country, type CountryUrls } from './countries.js';
 
 export interface Config {
   /** null cuando se corre en --dry-run sin webhook configurado. */
   discordWebhookUrl: string | null;
+  /** Pais de Rappi. Decide el dominio y se verifica contra el estado de la app. */
+  country: Country;
+  urls: CountryUrls;
   expectedAddress: string;
   browserProfileDir: string;
   scrapeTimeoutMs: number;
@@ -72,10 +76,13 @@ export function loadConfig(opts: { requireWebhook: boolean; cwd?: string }): Con
     );
   }
 
-  const expectedAddress = process.env.EXPECTED_ADDRESS?.trim() || 'Chia';
+  const country = resolveCountry(process.env.RAPPI_COUNTRY);
+  const expectedAddress = process.env.EXPECTED_ADDRESS?.trim() || '';
 
   return {
     discordWebhookUrl,
+    country,
+    urls: urlsFor(country),
     expectedAddress,
     browserProfileDir: resolve(
       cwd,

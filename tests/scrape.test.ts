@@ -220,7 +220,11 @@ withBrowser('pagina sin tarjetas', () => {
     // Se anula la navegacion: el DOM vacio se queda puesto y no se toca la red.
     (page as unknown as { goto: () => Promise<null> }).goto = async () => null;
 
-    const promise = harvestRestaurants(page, { maxScrollSteps: 2, timeoutMs: 1_000 });
+    const promise = harvestRestaurants(page, {
+      maxScrollSteps: 2,
+      timeoutMs: 1_000,
+      listingUrl: 'https://www.rappi.com.co/restaurantes',
+    });
     await expect(promise).rejects.toBeInstanceOf(SelectorError);
     await expect(promise).rejects.toMatchObject({ code: 'SELECTOR' });
     // El mensaje debe nombrar los selectores probados, que es lo que hace

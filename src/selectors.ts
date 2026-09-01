@@ -8,11 +8,6 @@
  * cambio menor de markup no tumbe la corrida entera.
  */
 
-export const URLS = {
-  home: 'https://www.rappi.com.co/',
-  restaurants: 'https://www.rappi.com.co/restaurantes',
-} as const;
-
 /** Contenedor de una tarjeta de restaurante en el listado. */
 export const RESTAURANT_CARD = [
   // Confirmados contra el DOM real de Rappi (2026-08-31).

@@ -204,6 +204,8 @@ export async function findFirst(
 interface AppState {
   isLoggedIn: boolean | null;
   city: string | null;
+  /** Codigo ISO que reporta Rappi, p. ej. "CO". */
+  country: string | null;
 }
 
 /**
@@ -235,6 +237,7 @@ export async function readAppState(page: Page): Promise<AppState | null> {
       return {
         isLoggedIn: typeof flag === 'boolean' ? flag : null,
         city: typeof props?.location?.city === 'string' ? props.location.city : null,
+        country: typeof props?.location?.country === 'string' ? props.location.country : null,
       };
     }, NEXT_DATA_ID);
   } catch {
@@ -300,7 +303,26 @@ export function normalizeAddress(s: string): string {
  * Si el indicador no aparece se tira `SelectorError`, no `AddressError`: eso
  * significa que Rappi cambio su HTML, no que la direccion este mal.
  */
+export async function assertCountryMatches(page: Page, expectedIso: string): Promise<void> {
+  const state = await readAppState(page);
+  // Sin dato no se inventa: la verificacion de ciudad ya cubre el caso grave.
+  if (state?.country === null || state?.country === undefined) return;
+
+  if (state.country.trim().toUpperCase() !== expectedIso.toUpperCase()) {
+    throw new AddressError(
+      `Rappi reporta el pais "${state.country}" y RAPPI_COUNTRY dice ` +
+        `"${expectedIso}". La sesion guardada es de otro pais: revisa .env o ` +
+        'borra .browser-profile/ y corre `npm run login` en el pais correcto.',
+    );
+  }
+}
+
 export async function assertAddressMatches(page: Page, expected: string): Promise<void> {
+  // Sin ciudad esperada no hay nada que verificar. Es una decision explicita:
+  // quien no configure EXPECTED_ADDRESS acepta recibir lo que sea que Rappi
+  // tenga activo, y el encabezado del mensaje no afirmara ninguna ciudad.
+  if (expected.trim() === '') return;
+
   // Fuente primaria: la ciudad que declara la app.
   //
   // El header muestra SOLO la calle ("Cl. 00 #0-00"), sin ciudad, asi que
