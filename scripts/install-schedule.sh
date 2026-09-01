@@ -11,7 +11,7 @@
 #   ./scripts/install-schedule.sh 9 14 19 22   # las horas que quieras
 set -euo pipefail
 
-LABEL="com.rappi-ofertas.check"
+LABEL="${RAPPI_LAUNCHD_LABEL:-com.rappi-ofertas.check}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
